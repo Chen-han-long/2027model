@@ -1,100 +1,185 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { ProceduralPart } from './models';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
+import { buildPart, disposePart } from './modelFactory.js';
 
-function downloadBlob(blob, filename) {
-  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+function downloadBlob(blob,filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1800);
 }
-
-function ImportedShape({imported,material}) {
-  const prepared = useMemo(()=>{
-    const copy=imported.object.clone(true);
-    copy.traverse(child=>{if(child.isMesh){child.material=material;child.castShadow=true;child.receiveShadow=true;}});
-    const box=new THREE.Box3().setFromObject(copy);const size=new THREE.Vector3();const center=new THREE.Vector3();box.getSize(size);box.getCenter(center);
-    const max=Math.max(size.x,size.y,size.z);
-    if(max<1e-10||!Number.isFinite(max))return {object:copy,scale:1,center:new THREE.Vector3()};
-    return {object:copy,scale:4.7/max,center};
-  },[imported,material]);
-  return <group scale={prepared.scale}><primitive object={prepared.object} position={[-prepared.center.x,-prepared.center.y,-prepared.center.z]}/></group>;
+function axesGizmo(canvas,camera){
+  if(!canvas)return;
+  const ctx=canvas.getContext('2d');if(!ctx)return;
+  const W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  const invert=camera.quaternion.clone().invert();
+  const basis=[
+    {name:'X',rgb:'#ef817b',vec:new THREE.Vector3(1,0,0)},
+    {name:'Y',rgb:'#8bd9ad',vec:new THREE.Vector3(0,1,0)},
+    {name:'Z',rgb:'#89bdfa',vec:new THREE.Vector3(0,0,1)}
+  ];
+  const origin=[W/2,H/2],len=W*.28;
+  const projected=basis.map(axis=>({...axis,relative:axis.vec.applyQuaternion(invert)}));
+  projected.sort((a,b)=>a.relative.z-b.relative.z); // draw farther axis first
+  for(const a of projected){
+    const x=origin[0]+a.relative.x*len,y=origin[1]-a.relative.y*len;
+    ctx.beginPath();ctx.moveTo(...origin);ctx.lineTo(x,y);ctx.strokeStyle=a.rgb;ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke();
+    ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);ctx.fillStyle=a.rgb;ctx.fill();
+    const lx=origin[0]+a.relative.x*(len+15),ly=origin[1]-a.relative.y*(len+15);
+    ctx.fillStyle=a.rgb;ctx.font='bold 19px monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(a.name,lx,ly);
+  }
+  ctx.beginPath();ctx.arc(...origin,5,0,Math.PI*2);ctx.fillStyle='#d4e3e9';ctx.fill();
 }
-
-function CameraRig({viewCommand,autoRotate,controlsRef}) {
-  const {camera}=useThree();
-  useEffect(()=>{
-    const c=controlsRef.current;if(!c)return;
-    const dir={iso:[8,5.5,9],front:[0,.01,11],back:[0,.01,-11],right:[11,.01,0],top:[0,11,.01]};
-    if(viewCommand.name==='zoomIn'||viewCommand.name==='zoomOut'){
-      const direction=camera.position.clone().sub(c.target).multiplyScalar(viewCommand.name==='zoomIn'?.77:1.3);
-      camera.position.copy(c.target.clone().add(direction));camera.updateProjectionMatrix();c.update();return;
-    }
-    const next=dir[viewCommand.name]||dir.iso;
-    camera.position.set(...next);c.target.set(0,0,0);camera.up.set(0,1,0);camera.lookAt(0,0,0);camera.updateProjectionMatrix();c.update();
-  },[viewCommand, camera, controlsRef]);
-  useEffect(()=>{if(controlsRef.current){controlsRef.current.autoRotate=autoRotate;controlsRef.current.update();}},[autoRotate,controlsRef]);
-  return null;
-}
-
-function Scene({id,imported,options,viewCommand,modelRootRef}) {
-  const controls=useRef();
-  const mat=useMemo(()=>new THREE.MeshPhysicalMaterial({color:options.color,metalness:options.metalness,roughness:options.roughness,clearcoat:.18,clearcoatRoughness:.3,wireframe:options.wireframe,opacity:options.opacity,transparent:options.opacity<1,side:THREE.DoubleSide,depthWrite:options.opacity>=1}),[options.color,options.metalness,options.roughness,options.wireframe,options.opacity]);
-  useEffect(()=>()=>mat.dispose(),[mat]);
-  return <>
-    <ambientLight intensity={.60} />
-    <hemisphereLight args={['#d6f1ff','#172334',1.1]} />
-    <directionalLight position={[5,9,7]} intensity={options.light} castShadow={options.shadows} shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-camera-left={-9} shadow-camera-right={9} shadow-camera-top={9} shadow-camera-bottom={-9} shadow-bias={-.00025} />
-    <directionalLight position={[-7,1,-6]} intensity={.9} color="#7eb1cb" />
-    <directionalLight position={[0,2,10]} intensity={.55} color="#f5e9db" />
-    <group ref={modelRootRef} key={imported?.name||id}>
-      {imported?<ImportedShape imported={imported} material={mat}/>:<ProceduralPart id={id} material={mat} explode={options.explode} labels={options.labels}/>}
-    </group>
-    <mesh rotation={[-Math.PI/2,0,0]} position={[0,-3.03,0]} receiveShadow visible={options.shadows}>
-      <planeGeometry args={[120,120]}/>
-      <shadowMaterial transparent opacity={.32}/>
-    </mesh>
-    {options.grid && <gridHelper args={[16,32,'#3c596a','#233746']} position={[0,-3.02,0]} />}
-    {options.axes && <axesHelper args={[3.2]} position={[-3.3,-2.9,-3.3]} />}
-    <OrbitControls ref={controls} enableDamping dampingFactor={.075} rotateSpeed={.65} zoomSpeed={.9} panSpeed={.75} minDistance={3.3} maxDistance={29} autoRotate={options.rotate} autoRotateSpeed={.85} makeDefault />
-    <CameraRig viewCommand={viewCommand} autoRotate={options.rotate} controlsRef={controls} />
-  </>;
-}
-
-function compositedCanvas(renderer, background, maxSide=0) {
-  if(!renderer) throw new Error('3D 画布尚未准备好');
-  renderer.render(renderer.userData.scene,renderer.userData.camera);
-  const source=renderer.domElement;
-  const scale=maxSide?Math.min(1,maxSide/Math.max(source.width,source.height)):1;
-  const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(source.width*scale));canvas.height=Math.max(1,Math.round(source.height*scale));
-  const ctx=canvas.getContext('2d');
+function compositeCanvas(state,background,maxSide=0){
+  if(!state?.renderer)throw new Error('三维画布尚未就绪');
+  state.renderer.render(state.scene,state.camera);
+  const source=state.renderer.domElement;
+  const factor=maxSide?Math.min(1,maxSide/Math.max(source.width,source.height)):1;
+  const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(source.width*factor));canvas.height=Math.max(1,Math.round(source.height*factor));
+  const ctx=canvas.getContext('2d');if(!ctx)throw new Error('浏览器无法创建截图画布');
   const colors=background==='light'?['#dce8ec','#8196a5']:background==='slate'?['#45535f','#14202b']:['#263745','#111c27'];
-  const gradient=ctx.createRadialGradient(canvas.width*.48,canvas.height*.38,0,canvas.width*.48,canvas.height*.38,Math.max(canvas.width,canvas.height)*.8);
-  gradient.addColorStop(0,colors[0]);gradient.addColorStop(1,colors[1]);ctx.fillStyle=gradient;ctx.fillRect(0,0,canvas.width,canvas.height);
+  const gr=ctx.createRadialGradient(canvas.width*.48,canvas.height*.38,0,canvas.width*.48,canvas.height*.38,Math.max(canvas.width,canvas.height)*.8);
+  gr.addColorStop(0,colors[0]);gr.addColorStop(1,colors[1]);ctx.fillStyle=gr;ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(source,0,0,canvas.width,canvas.height);
   return canvas;
 }
+function importedGroup(imported,material){
+  const source=imported.object.clone(true);
+  source.traverse(o=>{if(o.isMesh){o.material=material;o.castShadow=true;o.receiveShadow=true;}});
+  source.updateMatrixWorld(true);
+  const bbox=new THREE.Box3().setFromObject(source),size=new THREE.Vector3(),center=new THREE.Vector3();
+  bbox.getSize(size);bbox.getCenter(center);
+  const root=new THREE.Group();
+  if(Math.max(size.x,size.y,size.z)>1e-9){
+    const factor=4.75/Math.max(size.x,size.y,size.z);
+    // Keep the internal object transformations intact and normalize the imported bounds.
+    const wrapper=new THREE.Group();root.add(wrapper);wrapper.scale.setScalar(factor);wrapper.position.copy(center).multiplyScalar(-factor);
+    wrapper.add(source);
+  }else root.add(source);
+  return root;
+}
+function safeDispose(root,material,isImported){
+  if(!root)return;
+  if(!isImported)disposePart(root,material);
+  // Imported file meshes share source geometry: do not dispose them when changing views.
+}
 
-const Viewer = forwardRef(function Viewer({id,imported,options,viewCommand,background='midnight'},ref){
-  const renderer=useRef();const modelRoot=useRef();
+const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,background='midnight'},ref){
+  const mount=useRef(null),gizmo=useRef(null),state=useRef(null),[issue,setIssue]=useState('');
+  useEffect(()=>{
+    const el=mount.current;if(!el)return;
+    let renderer,frame,resizeObserver,lossHandler;
+    try{
+      renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true,powerPreference:'high-performance'});
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+      renderer.setClearColor(0x000000,0);renderer.outputColorSpace=THREE.SRGBColorSpace;
+      renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.35;
+      renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+      renderer.domElement.style.cssText='display:block;width:100%;height:100%;touch-action:none';
+      renderer.domElement.setAttribute('aria-label','可旋转的三维机械零件');
+      el.appendChild(renderer.domElement);
+      const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(34,1,.1,250);
+      camera.position.set(8,5.5,9);camera.lookAt(0,0,0);
+      const controls=new OrbitControls(camera,renderer.domElement);
+      controls.enableDamping=true;controls.dampingFactor=.075;controls.rotateSpeed=.65;controls.zoomSpeed=.9;controls.panSpeed=.75;
+      controls.minDistance=4;controls.maxDistance=45;controls.target.set(0,0,0);controls.update();
+      scene.add(new THREE.AmbientLight('#d9e7f2',1.15));
+      scene.add(new THREE.HemisphereLight('#e9f8ff','#26364b',2.0));
+      const keyLight=new THREE.DirectionalLight('#ffffff',3.2);keyLight.position.set(5,9,7);keyLight.castShadow=true;
+      keyLight.shadow.mapSize.set(2048,2048);
+      keyLight.shadow.camera.left=-10;keyLight.shadow.camera.right=10;keyLight.shadow.camera.top=10;keyLight.shadow.camera.bottom=-10;
+      keyLight.shadow.camera.near=.5;keyLight.shadow.camera.far=40;keyLight.shadow.bias=-.0002;
+      scene.add(keyLight);
+      const fill=new THREE.DirectionalLight('#87c5e7',1.1);fill.position.set(-7,2,-6);scene.add(fill);
+      const rim=new THREE.DirectionalLight('#ffefdf',.8);rim.position.set(0,3,10);scene.add(rim);
+      const ground=meshGround(scene);
+      const grid=new THREE.GridHelper(16,32,'#54778a','#304654');grid.position.y=-3.015;scene.add(grid);
+      const axes=new THREE.AxesHelper(3.2);axes.position.set(-3.35,-2.95,-3.35);scene.add(axes);
+      const material=new THREE.MeshPhysicalMaterial({color:'#8eabc0',metalness:.68,roughness:.32,clearcoat:.12,side:THREE.DoubleSide});
+      const model=buildPart(id,material,options.explode,options.labels);scene.add(model);
+      const s={renderer,scene,camera,controls,material,model,modelIsImported:false,keyLight,grid,axes,ground,opts:options};state.current=s;
+      function resize(){
+        const w=Math.max(1,el.clientWidth),h=Math.max(1,el.clientHeight);
+        renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();renderer.render(scene,camera);
+        axesGizmo(gizmo.current,camera);
+      }
+      resizeObserver=new ResizeObserver(resize);resizeObserver.observe(el);resize();
+      lossHandler=e=>{e.preventDefault();setIssue('浏览器的 WebGL 图形上下文丢失。请刷新页面，并检查浏览器硬件加速是否开启。');};
+      renderer.domElement.addEventListener('webglcontextlost',lossHandler);
+      const animate=()=>{
+        frame=window.requestAnimationFrame(animate);
+        try{controls.update();renderer.render(scene,camera);axesGizmo(gizmo.current,camera);}
+        catch(err){window.cancelAnimationFrame(frame);frame=null;console.error('[ForgeStudio] 3D render failed:',err);setIssue(`三维渲染失败：${err.message||'未知错误'}`);}
+      };
+      animate();setIssue('');
+    }catch(err){
+      console.error('[ForgeStudio] WebGL init failed:',err);
+      setIssue(`WebGL 初始化失败：${err.message||'无法使用显卡加速'}。建议开启浏览器硬件加速并刷新。`);
+    }
+    return ()=>{
+      window.cancelAnimationFrame(frame);
+      if(resizeObserver)resizeObserver.disconnect();
+      const s=state.current;
+      if(s?.renderer===renderer){
+        s.controls.dispose();safeDispose(s.model,s.material,s.modelIsImported);s.material.dispose();
+        s.ground.geometry.dispose();s.ground.material.dispose();s.grid.geometry.dispose();s.grid.material.dispose();s.axes.geometry.dispose();s.axes.material.dispose();
+        state.current=null;
+      }
+      if(renderer){renderer.domElement.removeEventListener('webglcontextlost',lossHandler);renderer.dispose();renderer.domElement.remove();}
+    };
+  },[]);
+  useEffect(()=>{
+    const s=state.current;if(!s)return;
+    try{
+      if(s.model){s.scene.remove(s.model);safeDispose(s.model,s.material,s.modelIsImported);}
+      const root=imported?importedGroup(imported,s.material):buildPart(id,s.material,options.explode,options.labels);
+      s.scene.add(root);s.model=root;s.modelIsImported=!!imported;
+    }catch(err){console.error('[ForgeStudio] Model creation failed:',err);setIssue(`模型创建失败：${err.message}`);}
+  },[id,imported,options.explode,options.labels]);
+  useEffect(()=>{
+    const s=state.current;if(!s)return;
+    const m=s.material;
+    m.color.set(options.color);m.metalness=options.metalness;m.roughness=options.roughness;
+    m.wireframe=options.wireframe;m.opacity=options.opacity;m.transparent=options.opacity<1;m.depthWrite=options.opacity>=1;m.needsUpdate=true;
+    s.keyLight.intensity=options.light;
+    s.keyLight.castShadow=options.shadows;s.ground.visible=options.shadows;s.grid.visible=options.grid;s.axes.visible=options.axes;
+    s.controls.autoRotate=options.rotate;s.controls.autoRotateSpeed=.85;
+  },[options]);
+  useEffect(()=>{
+    const s=state.current;if(!s)return;
+    const names={iso:[8,5.5,9],front:[0,.01,12],back:[0,.01,-12],right:[12,.01,0],top:[.01,12,.01]};
+    const name=viewCommand.name;
+    if(name==='zoomIn'||name==='zoomOut'){
+      const direction=s.camera.position.clone().sub(s.controls.target).multiplyScalar(name==='zoomIn'?.77:1.3);
+      s.camera.position.copy(s.controls.target.clone().add(direction));
+    }else{
+      s.camera.position.fromArray(names[name]||names.iso);s.controls.target.set(0,0,0);s.camera.up.set(0,1,0);
+    }
+    s.camera.lookAt(s.controls.target);s.camera.updateProjectionMatrix();s.controls.update();
+    axesGizmo(gizmo.current,s.camera);
+  },[viewCommand]);
   useImperativeHandle(ref,()=>({
-    screenshot(){
-      const canvas=compositedCanvas(renderer.current,background);
-      canvas.toBlob(blob=>{if(blob)downloadBlob(blob,`2027-${imported?.name||id}-view.png`);else alert('截图失败，请换用最新版浏览器。')},'image/png');
-    },
-    captureForAI(){
-      return compositedCanvas(renderer.current,background,960).toDataURL('image/jpeg',.74);
-    },
-    exportSTL(){
-      if(!modelRoot.current)throw new Error('3D 模型尚未准备好');
-      const exporter=new STLExporter();
-      modelRoot.current.updateMatrixWorld(true);
-      const result=exporter.parse(modelRoot.current,{binary:true});
-      downloadBlob(new Blob([result],{type:'model/stl'}),`2027-${imported?.name||id}-preview.stl`);
+    screenshot(){const shot=compositeCanvas(state.current,background);shot.toBlob(blob=>{if(blob)downloadBlob(blob,`2027-${imported?.name||id}-view.png`);},'image/png');},
+    captureForAI(){return compositeCanvas(state.current,background,960).toDataURL('image/jpeg',.74);},
+    exportSTL(){const s=state.current;if(!s?.model)throw new Error('3D 模型尚未准备好');
+      s.model.updateMatrixWorld(true);const bytes=new STLExporter().parse(s.model,{binary:true});
+      downloadBlob(new Blob([bytes],{type:'model/stl'}),`2027-${imported?.name||id}-preview.stl`);
     }
   }),[id,imported,background]);
-  return <Canvas shadows dpr={[1,2]} gl={{antialias:true,alpha:true,preserveDrawingBuffer:true,powerPreference:'high-performance'}} camera={{fov:34,near:.1,far:120,position:[8,5.5,9]}} onCreated={({gl,scene,camera})=>{renderer.current=gl;gl.userData.scene=scene;gl.userData.camera=camera;gl.setClearColor('#000000',0)}}>
-    <Scene id={id} imported={imported} options={options} viewCommand={viewCommand} modelRootRef={modelRoot}/>
-  </Canvas>;
+  return React.createElement('div',{className:'native-viewer'},
+    React.createElement('div',{ref:mount,className:'native-canvas'}),
+    React.createElement('canvas',{ref:gizmo,width:180,height:180,className:'live-axis-gizmo','aria-label':'随视角旋转的 XYZ 坐标轴'}),
+    issue?React.createElement('div',{className:'webgl-error',role:'alert'},
+      React.createElement('strong',null,'3D 模型未能渲染'),
+      React.createElement('span',null,issue),
+      React.createElement('span',null,'建议使用新版 Chrome / Edge，开启硬件加速后刷新。浏览器按 F12 → Console 可查看具体错误。')
+    ):null
+  );
 });
+function meshGround(scene){
+  const geo=new THREE.PlaneGeometry(120,120),mat=new THREE.ShadowMaterial({transparent:true,opacity:.32});
+  const ground=new THREE.Mesh(geo,mat);ground.rotation.x=-Math.PI/2;ground.position.y=-3.03;ground.receiveShadow=true;scene.add(ground);return ground;
+}
 export default Viewer;

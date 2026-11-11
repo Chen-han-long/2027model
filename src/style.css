@@ -19,3 +19,13 @@
 .ai-connect-options select{width:100%;margin-top:6px;padding:9px 8px;border-radius:7px;border:1px solid #395160;background:#12222e;color:#d5ebed;outline:0;font-size:11px}
 .ai-connect-options .switch-row{padding:6px 0 3px}
 @media(max-height:780px){.chat-compose{padding-top:8px;padding-bottom:10px}.key-panel{padding:8px;margin-bottom:7px}.ai-connect-options{margin-bottom:6px}.key-tip{font-size:9px}}
+
+/* 3D 画布直接由 Three.js 控制；真实 XYZ 朝向通过相机四元数绘制。 */
+.canvas-area .native-viewer{position:relative;width:100%;height:100%;min-height:100%;overflow:hidden}
+.native-canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.native-canvas canvas{display:block;width:100%;height:100%;outline:none}
+.live-axis-gizmo{position:absolute;bottom:14px;left:17px;width:92px;height:92px;pointer-events:none;opacity:.98;z-index:2}
+.webgl-error{position:absolute;inset:40px;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;gap:12px;padding:24px;z-index:3;background:#0d1d2de0;border:1px solid #82676e;border-radius:12px;color:#e9ecf1;line-height:1.8;font-size:13px}
+.webgl-error strong{font-size:18px;color:#ffcdcd}
+.webgl-error span{max-width:450px}
+@media(max-width:580px){.live-axis-gizmo{width:72px;height:72px;bottom:8px;left:7px}.webgl-error{inset:12px;font-size:11px}}
