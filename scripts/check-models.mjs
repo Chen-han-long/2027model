@@ -20,12 +20,32 @@ for(const name of expected){
   const gltf=JSON.parse(buf.toString('utf8',20,20+jsonLength));
   assert((gltf.meshes||[]).length>0,`${name} 没有网格`);
   assert((gltf.accessors||[]).length>0,`${name} 没有顶点数据`);
-  const positions=gltf.meshes.flatMap(mesh=>mesh.primitives||[]).map(p=>gltf.accessors[p.attributes.POSITION]);
+  const primitives=gltf.meshes.flatMap(mesh=>mesh.primitives||[]);
+  const positions=primitives.map(p=>gltf.accessors[p.attributes.POSITION]);
   assert(positions.length,`${name} 没有顶点属性`);
-  for(const a of positions){
-    assert(a && a.count>=3,`${name} 顶点数不足`);
-    assert(a.min?.length===3 && a.max?.length===3,`${name} 缺少包围盒`);
-    assert(a.min.every(Number.isFinite)&&a.max.every(Number.isFinite),`${name} 顶点包含非有限坐标`);
+  const binStart=20+jsonLength+8;
+  for(let i=0;i<primitives.length;i++){
+    const pos=positions[i],primitive=primitives[i];
+    assert(pos && pos.count>=3,`${name} 顶点数不足`);
+    assert(pos.min?.length===3 && pos.max?.length===3,`${name} 缺少包围盒`);
+    assert(pos.min.every(Number.isFinite)&&pos.max.every(Number.isFinite),`${name} 顶点包含非有限坐标`);
+    // Bug fixed in v2.0.1: previous GLB exports had POSITION but no NORMAL.
+    // Without NORMAL, THREE.MeshPhysicalMaterial can render a black silhouette.
+    assert(Number.isInteger(primitive.attributes.NORMAL),
+      `${name} 缺少 NORMAL 法线属性（会导致模型显示黑色）。请重新导出 GLB。`);
+    const normal=gltf.accessors[primitive.attributes.NORMAL];
+    assert(normal?.type==='VEC3'&&normal.componentType===5126 && normal.count===pos.count,
+      `${name} 法线数据格式或顶点数量不正确`);
+    const view=gltf.bufferViews[normal.bufferView];
+    assert(view && (view.buffer??0)===0,`${name} 法线缓冲区缺失`);
+    const stride=view.byteStride??12;
+    for(const idx of [0,Math.floor(normal.count/2),normal.count-1]){
+      const offset=binStart+(view.byteOffset??0)+(normal.byteOffset??0)+idx*stride;
+      assert(offset+12<=buf.length,`${name} 法线数据越界`);
+      const x=buf.readFloatLE(offset),y=buf.readFloatLE(offset+4),z=buf.readFloatLE(offset+8);
+      const len=Math.hypot(x,y,z);
+      assert(Number.isFinite(len)&&len>.9&&len<1.1,`${name} 法线无效：${len}`);
+    }
   }
   const m=manifest.find(x=>x.part===name);
   assert.equal(m.cad_valid,true,`${name} 原始 CAD 未通过校验`);

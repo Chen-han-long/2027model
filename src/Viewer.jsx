@@ -35,6 +35,39 @@ function orientationGizmo(canvas,camera){
   }
   ctx.beginPath();ctx.arc(w/2,h/2,4,0,Math.PI*2);ctx.fillStyle='#d9edf6';ctx.fill();
 }
+// Recover older GLB files that were exported without the glTF NORMAL attribute.
+// Physically based materials require surface normals for proper illumination.
+// A flat-normal fallback is safer for CAD faces than inventing a single constant normal.
+function ensureSurfaceNormals(scene, partId='导入模型') {
+  let repaired=0;
+  scene.traverse(object=>{
+    if(!object.isMesh || !object.geometry)return;
+    const geometry=object.geometry;
+    const positions=geometry.getAttribute('position');
+    if(!positions || !positions.count)return;
+    const normal=geometry.getAttribute('normal');
+    let missing=!normal || normal.count!==positions.count;
+    if(!missing) {
+      const samples=[0,Math.floor(normal.count/2),normal.count-1];
+      missing=samples.some(i=>{
+        const x=normal.getX(i),y=normal.getY(i),z=normal.getZ(i);
+        const magnitude=x*x+y*y+z*z;
+        return !Number.isFinite(magnitude)||magnitude<0.001;
+      });
+    }
+    if(missing) {
+      const fallback=geometry.index?geometry.toNonIndexed():geometry.clone();
+      fallback.computeVertexNormals();
+      object.geometry=fallback;
+      // Disposing here would break other meshes if they share the same geometry.
+      // Dispose the original geometries only when the loaded scene is discarded.
+      repaired++;
+    }
+  });
+  if(repaired)console.warn(`[FORGE] ${partId}: repaired missing GLB normals on ${repaired} mesh(es).`);
+  return repaired;
+}
+
 function isUsable(root){
   if(!root)throw Error('模型为空');
   let vertices=0,meshes=0;
@@ -136,19 +169,27 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,project
       const key=new THREE.DirectionalLight('#fff7e9',3);key.position.set(500,900,900);key.castShadow=true;
       key.shadow.mapSize.set(2048,2048);key.shadow.bias=-.00015;scene.add(key,key.target);
       const fill=new THREE.DirectionalLight('#8ac7f2',1.5);fill.position.set(-600,400,-500);scene.add(fill);
+      // Soft camera-following light keeps CAD details readable when viewing back faces.
+      const headlight=new THREE.DirectionalLight('#ffffff',1.0);
+      headlight.castShadow=false;
+      scene.add(headlight,headlight.target);
       const material=new THREE.MeshPhysicalMaterial({color:'#8eabc0',metalness:.55,roughness:.35,clearcoat:.18,side:THREE.DoubleSide});
       const ground=new THREE.Mesh(new THREE.PlaneGeometry(2800,2800),new THREE.ShadowMaterial({opacity:.26}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
       const grid=new THREE.GridHelper(2200,44,'#567587','#314654');scene.add(grid);
       const axes=new THREE.AxesHelper(180);scene.add(axes);
       const st={el,renderer,scene,perspective,ortho,camera,controls,material,ground,grid,axes,key,fill,model:null,modelIsImported:false,
-        center:new THREE.Vector3(),fitDistance:1000,orthoHalf:800,projection};state.current=st;
+        center:new THREE.Vector3(),fitDistance:1000,orthoHalf:800,projection,headlight};state.current=st;
       resize=new ResizeObserver(()=>{
         const w=Math.max(1,el.clientWidth),h=Math.max(1,el.clientHeight);renderer.setSize(w,h,false);
         const aspect=w/h;perspective.aspect=aspect;perspective.updateProjectionMatrix();
         ortho.left=-st.orthoHalf*aspect;ortho.right=st.orthoHalf*aspect;
         ortho.top=st.orthoHalf;ortho.bottom=-st.orthoHalf;ortho.updateProjectionMatrix();
       });resize.observe(el);
-      const paint=()=>{raf=requestAnimationFrame(paint);controls.update();renderer.render(scene,st.camera);orientationGizmo(axisCanvas.current,st.camera);};paint();
+      const paint=()=>{raf=requestAnimationFrame(paint);controls.update();
+        headlight.position.copy(st.camera.position);
+        headlight.target.position.copy(controls.target);
+        renderer.render(scene,st.camera);orientationGizmo(axisCanvas.current,st.camera);
+      };paint();
     }catch(e){console.error('WebGL startup failed',e);setError('WebGL 初始化失败：'+(e.message||'未知错误'));}
     return()=>{++requestId.current;cancelAnimationFrame(raf);resize?.disconnect();
       const st=state.current;if(st?.renderer===renderer){st.controls.dispose();if(st.model&&!st.modelIsImported)disposeTree(st.model,st.material);
@@ -165,6 +206,7 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,project
     const commit=(root,isImported)=>{
       if(req!==requestId.current){if(!isImported)disposeTree(root,st.material);return;}
       try{
+        ensureSurfaceNormals(root, id);
         root.traverse(o=>{if(o.isMesh){o.material=st.material;o.castShadow=true;o.receiveShadow=true;}});
         isUsable(root);root.updateMatrixWorld(true);
         const old=st.model,oldImported=st.modelIsImported;
@@ -176,7 +218,7 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,project
       }catch(e){st.scene.remove(root);if(!isImported)disposeTree(root,st.material);console.error(e);setError('无法显示模型：'+e.message);setLoading(false);}
     };
     if(imported){const copy=imported.object.clone(true);commit(copy,true);return;}
-    const url=`${import.meta.env.BASE_URL}models/${id}.glb`;
+    const url=`${import.meta.env.BASE_URL}models/${id}.glb?v=2.0.1`;
     new GLTFLoader().load(url,gltf=>commit(gltf.scene,false),undefined,e=>{
       if(req!==requestId.current)return;
       console.error('Unable to load drawing solid',url,e);
@@ -190,6 +232,7 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,project
     st.material.transparent=options.opacity<1;st.material.depthWrite=options.opacity>=1;
     st.material.wireframe=options.wireframe;st.material.needsUpdate=true;
     st.key.intensity=options.light;st.key.castShadow=options.shadows;
+    if(st.headlight)st.headlight.intensity=Math.max(.18,options.light*.38);
     st.grid.visible=options.grid;st.ground.visible=options.shadows;st.axes.visible=options.axes;
     st.controls.autoRotate=options.rotate;st.controls.autoRotateSpeed=.7;
   },[options]);

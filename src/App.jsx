@@ -8,7 +8,7 @@ import Viewer from './Viewer';
 import { parts,partById,palettes,quickQuestions } from './data';
 import { askDeepSeek, DEFAULT_GATEWAY_URL } from './ai';
 
-const initialOptions={color:'#8eabc0',metalness:.68,roughness:.32,light:2.8,opacity:1,shadows:true,grid:true,axes:false,wireframe:false,rotate:false};
+const initialOptions={color:'#8eabc0',metalness:.42,roughness:.42,light:2.4,opacity:1,shadows:true,grid:true,axes:false,wireframe:false,rotate:false};
 const backgrounds={midnight:'深空',slate:'石墨',light:'浅色'};
 const getModelName=(imported,part)=>imported?imported.name:part.name;
 const drawingUrl=(id,ext)=>`${import.meta.env.BASE_URL}drawings/${id}.${ext}`;
