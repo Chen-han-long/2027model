@@ -67,6 +67,68 @@ function safeDispose(root, material, isImported) {
   disposePart(root, material);
 }
 
+// An invalid geometry or distant accidental vertex must never replace a
+// previously visible part. This also catches an empty model (no thrown error).
+function verifyModel(root, id) {
+  if (!root) throw new Error(`${id} 件没有生成三维节点`);
+  let meshes = 0, finitePositions = 0;
+  root.traverse(object => {
+    if (!object.isMesh) return;
+    meshes++;
+    const positions=object.geometry?.getAttribute('position');
+    if(!positions?.count)throw new Error(`${id} 件包含空网格`);
+    for(let i=0;i<positions.array.length;i++){
+      if(!Number.isFinite(positions.array[i]))throw new Error(`${id} 件网格坐标出现 NaN/Infinity`);
+    }
+    finitePositions+=positions.count;
+  });
+  root.updateMatrixWorld(true);
+  const bounds=new THREE.Box3().setFromObject(root);
+  const dims=bounds.getSize(new THREE.Vector3());
+  if (!meshes||finitePositions<3||bounds.isEmpty()||
+      ![dims.x,dims.y,dims.z].every(v=>Number.isFinite(v)&&v>1&&v<100000))
+    throw new Error(`${id} 件模型包围盒不合理或没有可见网格`);
+  if(id==='H' && (dims.z<620 || dims.z>750 || dims.y<750 || dims.y>1030))
+    throw new Error(`H 件生成尺寸异常：${dims.x.toFixed(0)}×${dims.y.toFixed(0)}×${dims.z.toFixed(0)} mm`);
+  return {meshes, vertices:finitePositions, bounds};
+}
+
+// Deliberately simple fail-safe for H, with an unmistakable on-screen warning.
+// It is never reported as a completed drawing-based model.
+function emergencyHousing(material) {
+  const group = new THREE.Group(); group.name = 'H-emergency-visibility';
+  const outer=new THREE.Mesh(new THREE.CylinderGeometry(265,265,624,64,1,true),material);
+  outer.rotation.x=Math.PI/2;outer.position.y=552;group.add(outer);
+  for(const z of [-325,325]){
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(250,20,16,80),material);
+    ring.position.set(0,552,z);group.add(ring);
+  }
+  for(const y of [15,875]) {
+    const foot=new THREE.Mesh(new THREE.BoxGeometry(600,30,650),material);
+    foot.position.set(0,y,0);group.add(foot);
+  }
+  return group;
+}
+function createVerifiedPart(id, imported, material, options) {
+  let result;
+  try {
+    result=imported?importedGroup(imported,material):buildPart(id,material,options.explode,options.labels);
+    const stats=verifyModel(result, imported ? '自定义' : id);
+    const stages=result.userData?.detailStages || [];
+    const omissions=stages.filter(s=>!s.ok);
+    return {root:result,stats,warning:omissions.length?
+      `${id} 件已显示，${omissions.map(s=>s.name).join('、')}存在生成问题（F12 控制台可查看详情）。`:''};
+  } catch(error){
+    if(result&&!imported) safeDispose(result,material,false);
+    if(!imported&&id==='H'){
+      console.error('[ForgeStudio] H drawing mesh failed; showing emergency shape:',error);
+      const fallback=emergencyHousing(material);
+      return {root:fallback,stats:verifyModel(fallback,'H'),warning:`H 件精细模型生成失败，当前显示的是简化保底模型。原因：${error.message}`};
+    }
+    throw error;
+  }
+}
+
 // Projection-aware fit: orientation is independent of resize, model switching,
 // or switching between orthographic and perspective projection.
 const DEFAULT_DIRECTION = new THREE.Vector3(1, .75, 1).normalize();
@@ -84,7 +146,9 @@ function fitCamera(state, model, element, resetDirection = false) {
   let direction = resetDirection ? DEFAULT_DIRECTION.clone() : camera.position.clone().sub(state.controls.target).normalize();
   if (direction.lengthSq()<.5) direction=DEFAULT_DIRECTION.clone();
   const previousScale=state.fitDistance>0 && !resetDirection
-    ? THREE.MathUtils.clamp(camera.position.distanceTo(state.controls.target)/state.fitDistance,.20,6)
+    ? THREE.MathUtils.clamp(camera.isOrthographicCamera
+      ? 1/Math.max(.1,camera.zoom)
+      : camera.position.distanceTo(state.controls.target)/state.fitDistance,.20,6)
     : 1;
   const worldUp = Math.abs(direction.dot(new THREE.Vector3(0,1,0)))>.998
     ? (Math.abs(camera.up.z)>.5?camera.up.clone():new THREE.Vector3(0,0,-1))
@@ -112,14 +176,14 @@ function fitCamera(state, model, element, resetDirection = false) {
   const ortho=state.orthoCamera;
   ortho.left=-halfHeight*aspect;ortho.right=halfHeight*aspect;
   ortho.top=halfHeight;ortho.bottom=-halfHeight;
-  ortho.zoom=resetDirection?1:Math.max(.1,ortho.zoom || 1);
+  ortho.zoom=resetDirection?1:(camera.isOrthographicCamera?1/previousScale:Math.max(.1,ortho.zoom||1));
   ortho.near=.01;ortho.far=Math.max(20000,maxDim*20);ortho.updateProjectionMatrix();
   state.perspectiveCamera.aspect=aspect;
   state.perspectiveCamera.near=Math.max(.01,radius/5000);
   state.perspectiveCamera.far=Math.max(20000,idealDistance*12+radius*5);
   state.perspectiveCamera.updateProjectionMatrix();
   state.center.copy(center);state.modelRadius=radius;state.fitDistance=idealDistance;
-  camera.position.copy(center).addScaledVector(direction,idealDistance*previousScale);
+  camera.position.copy(center).addScaledVector(direction,idealDistance*(camera.isOrthographicCamera?1:previousScale));
   camera.up.copy(worldUp);camera.lookAt(center);
   state.controls.target.copy(center);
   state.controls.minDistance=Math.max(.01,radius*.06);
@@ -147,25 +211,29 @@ function fitCamera(state, model, element, resetDirection = false) {
 function setProjection(state, projection, element) {
   if(!state || state.projection===projection)return;
   const oldCamera=state.camera;
-  const oldTarget=state.controls.target.clone();
-  const oldDirection=oldCamera.position.clone().sub(oldTarget).normalize();
-  const newCamera=projection==='orthographic'?state.orthoCamera:state.perspectiveCamera;
-  const zoomFactor=state.projection==='orthographic'?1/Math.max(.1,oldCamera.zoom):
-    oldCamera.position.distanceTo(oldTarget)/Math.max(1,state.fitDistance);
-  newCamera.position.copy(oldTarget).addScaledVector(oldDirection,state.fitDistance*zoomFactor);
-  newCamera.up.copy(oldCamera.up);
-  newCamera.lookAt(oldTarget);
-  state.camera=newCamera;state.controls.object=newCamera;state.projection=projection;
+  const target=state.controls.target.clone();
+  const direction=oldCamera.position.clone().sub(target).normalize();
+  const ratio=THREE.MathUtils.clamp(oldCamera.isOrthographicCamera
+    ? 1/Math.max(.1,oldCamera.zoom)
+    : oldCamera.position.distanceTo(target)/Math.max(1,state.fitDistance),.2,5);
+  const next=projection==='orthographic'?state.orthoCamera:state.perspectiveCamera;
+  next.position.copy(target).addScaledVector(direction,Math.max(1,state.fitDistance));
+  next.up.copy(oldCamera.up);
+  next.zoom=next.isOrthographicCamera?1/ratio:1;
+  next.lookAt(target);next.updateProjectionMatrix();
+  state.camera=next;
+  state.controls.object=next;
+  state.projection=projection;
   fitCamera(state,state.model,element,false);
-  // Maintain user zoom on mode switch while retaining a valid frustum.
-  if(projection==='orthographic'){
-    newCamera.zoom=THREE.MathUtils.clamp(1/zoomFactor,.1,16);
-    newCamera.updateProjectionMatrix();
-  }
+  // Keep one, and only one, zoom multiplier when switching projection.
+  if(next.isOrthographicCamera){next.zoom=1/ratio;next.updateProjectionMatrix();}
+  else{next.position.copy(state.center).addScaledVector(direction,state.fitDistance*ratio);next.lookAt(state.center);}
+  state.controls.target.copy(state.center);
+  state.controls.update();
 }
 
 const Viewer = forwardRef(function Viewer({ id, imported, options, viewCommand, projection = 'perspective', background = 'midnight' }, ref) {
-  const mount = useRef(null), gizmo = useRef(null), state = useRef(null), [issue, setIssue] = useState('');
+  const mount = useRef(null), gizmo = useRef(null), state = useRef(null), [issue, setIssue] = useState(''), [notice, setNotice]=useState('');
 
   useEffect(() => {
     const element = mount.current; if (!element) return;
@@ -201,13 +269,13 @@ const Viewer = forwardRef(function Viewer({ id, imported, options, viewCommand, 
       const grid = new THREE.GridHelper(2000, 40, '#54778a', '#304654'); scene.add(grid);
       const axes = new THREE.AxesHelper(160); scene.add(axes);
       const material = new THREE.MeshPhysicalMaterial({ color: '#8eabc0', metalness: .58, roughness: .34, clearcoat: .12, side: THREE.DoubleSide });
-      const model = imported ? importedGroup(imported, material) : buildPart(id, material, options.explode, options.labels);
+      const {root:model,warning:startingWarning,stats:modelStats} = createVerifiedPart(id, imported, material, options);
       scene.add(model);
 
       const current = {
         renderer, scene, camera, perspectiveCamera, orthoCamera, projection, controls, material, model, modelIsImported: !!imported,
         keyLight, fillLight, rimLight, ground, grid, axes, center: new THREE.Vector3(),
-        fitDistance: 1000, modelRadius: 500
+        fitDistance: 1000, modelRadius: 500, modelStats, modelInput:{id, imported, explode: options.explode, labels:options.labels}
       };
       state.current = current;
 
@@ -226,7 +294,7 @@ const Viewer = forwardRef(function Viewer({ id, imported, options, viewCommand, 
         try { controls.update(); renderer.render(scene, current.camera); axesGizmo(gizmo.current, current.camera); }
         catch (error) { window.cancelAnimationFrame(frame); frame = null; console.error('[ForgeStudio] 3D render failed:', error); setIssue(`三维渲染失败：${error.message || '未知错误'}`); }
       };
-      animate(); setIssue('');
+      animate(); setIssue(''); setNotice(startingWarning);
     } catch (error) {
       console.error('[ForgeStudio] WebGL init failed:', error);
       setIssue(`WebGL 初始化失败：${error.message || '无法使用显卡加速'}。建议开启浏览器硬件加速并刷新。`);
@@ -250,12 +318,28 @@ const Viewer = forwardRef(function Viewer({ id, imported, options, viewCommand, 
   useEffect(() => {
     const current = state.current; if (!current) return;
     try {
-      if (current.model) { current.scene.remove(current.model); safeDispose(current.model, current.material, current.modelIsImported); }
-      const root = imported ? importedGroup(imported, current.material) : buildPart(id, current.material, options.explode, options.labels);
-      current.scene.add(root); current.model = root; current.modelIsImported = !!imported;
-      fitCamera(current, root, mount.current, true); axesGizmo(gizmo.current, current.camera); setIssue('');
+      const prior=current.modelInput;
+      if(prior && prior.id===id && prior.imported===imported &&
+         prior.explode===options.explode && prior.labels===options.labels) return;
+      // Atomic swap: never discard the visible model until the next one is
+      // fully generated, finite, and has a valid bounding box.
+      const next=createVerifiedPart(id, imported, current.material, options);
+      const previous=current.model,previousImported=current.modelIsImported;
+      current.scene.add(next.root);
+      try { fitCamera(current,next.root,mount.current,true); }
+      catch (error) {
+        current.scene.remove(next.root);
+        safeDispose(next.root,current.material,!!imported);
+        throw error;
+      }
+      current.model=next.root;
+      current.modelIsImported=!!imported;current.modelStats=next.stats;
+      current.modelInput={id,imported,explode:options.explode,labels:options.labels};
+      if(previous){ current.scene.remove(previous);safeDispose(previous,current.material,previousImported); }
+      axesGizmo(gizmo.current,current.camera);
+      setIssue('');setNotice(next.warning);
     } catch (error) {
-      console.error('[ForgeStudio] Model creation failed:', error); setIssue(`模型创建失败：${error.message || '未知错误'}`);
+      console.error('[ForgeStudio] Model creation failed:', error); setNotice(`新模型加载失败，已保留上一个可用模型：${error.message || '未知错误'}`);
     }
   }, [id, imported, options.explode, options.labels]);
 
@@ -289,6 +373,10 @@ const Viewer = forwardRef(function Viewer({ id, imported, options, viewCommand, 
           camera.position.clone().sub(current.controls.target).multiplyScalar(factor),1);
       }
     }else if(name==='fit'){
+      // Fit at the current direction, resetting zoom to show the whole part.
+      if(camera.isOrthographicCamera)camera.zoom=1;
+      else camera.position.copy(current.controls.target).addScaledVector(
+        camera.position.clone().sub(current.controls.target).normalize(),current.fitDistance);
       fitCamera(current,current.model,mount.current,false);
     }else{
       const endOnX=!imported&&id==='E';
@@ -327,6 +415,7 @@ const Viewer = forwardRef(function Viewer({ id, imported, options, viewCommand, 
   return React.createElement('div', { className: 'native-viewer' },
     React.createElement('div', { ref: mount, className: 'native-canvas' }),
     React.createElement('canvas', { ref: gizmo, width: 180, height: 180, className: 'live-axis-gizmo', 'aria-label': '随视角旋转的 XYZ 坐标轴' }),
+    notice ? React.createElement('div',{ className:'model-notice',role:'status'},notice) : null,
     issue ? React.createElement('div', { className: 'webgl-error', role: 'alert' },
       React.createElement('strong', null, '3D 模型未能渲染'),
       React.createElement('span', null, issue),

@@ -12,7 +12,7 @@ const checks = {
   E: { axis: 'x', mm: 2040, tolerance: 5 },
   F: { axis: 'x', mm: 440, tolerance: 5 },
   G: { axis: 'x', mm: 606, tolerance: 12 },
-  H: { axis: 'x', mm: 680, tolerance: 8 },
+  H: { axis: 'z', mm: 680, tolerance: 8 },
 };
 const material = new THREE.MeshStandardMaterial({color:0x8eabc0,side:THREE.DoubleSide});
 let failures = 0;
@@ -32,6 +32,25 @@ for (const [id, check] of Object.entries(checks)) {
       for (let i = 0; i < arr.length; i++) if (!Number.isFinite(arr[i])) throw new Error('NaN/Infinity in vertices');
       triangles += (geo.index?.count ?? arr.length / 3) / 3;
     });
+    if(id==='H'){
+      const stages=root.userData.detailStages||[];
+      if(stages.length<7||stages.some(s=>!s.ok))
+        throw new Error('H housing feature stages did not all complete: '+JSON.stringify(stages));
+      // Axial bearing bore must be empty, not a painted circle.
+      const testRay=(point,direction,filter=()=>true)=>{
+        const raycaster=new THREE.Raycaster(new THREE.Vector3(...point),new THREE.Vector3(...direction));
+        return raycaster.intersectObject(root,true).filter(hit=>filter(hit.point));
+      };
+      if(testRay([0,552,500],[0,0,-1]).length)
+        throw new Error('H main Ø540 flange bore is occluded by a false solid');
+      // Front three-hole mounting plate must actually be open.
+      for(const x of [-137,0,137])
+        if(testRay([x,168,500],[0,0,-1],p=>p.z>250).length)
+          throw new Error(`H three-port connection at x=${x} is not truly pierced`);
+      // The roof inspection port must pass into the cylinder chamber.
+      if(testRay([0,1000,0],[0,-1,0],p=>p.y>700).length)
+        throw new Error('H top inspection connection is covered by barrel/roof');
+    }
     const extent = size[check.axis];
     const error = 100 * Math.abs(extent - check.mm) / check.mm;
     if (!meshes || !triangles || error > check.tolerance || size.x <= 0 || size.y <= 0 || size.z <= 0)

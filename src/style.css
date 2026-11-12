@@ -100,3 +100,9 @@
 .projection-panel button.active{background:#2a6980;border-color:#83dce2;color:white}
 .projection-panel small{display:block;margin-top:7px;color:#8babb7;line-height:1.7;font-size:10px}
 @media(max-width:690px){.floating-toolbar{max-width:calc(100% - 12px);gap:2px;padding:3px}.floating-toolbar .view-button{font-size:10px;min-width:26px;padding-inline:3px}.toolbar-divider{margin-inline:1px}}
+
+/* v1.6: non-blocking recovery notice for an incomplete H mesh. */
+.model-notice{position:absolute;top:13px;left:50%;transform:translateX(-50%);z-index:12;
+  max-width:min(86%,660px);background:#4a3124ef;border:1px solid #aa794c;
+  color:#ffe7c6;border-radius:8px;padding:9px 12px;font-size:11px;line-height:1.55;
+  box-shadow:0 8px 26px #0915207c;pointer-events:none;text-align:center}

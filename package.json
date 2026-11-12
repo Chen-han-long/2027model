@@ -1,10 +1,11 @@
 {
   "name": "2027-cad-studio",
   "private": true,
-  "version": "1.5.0",
+  "version": "1.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/check-models.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "check": "node --check src/modelFactory.js && node --check src/ai.js && node --check worker/deepseek-proxy.js",

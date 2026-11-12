@@ -327,7 +327,7 @@ function buildB(g,m,explode,labels) {
   const outline=[[-184,25],[-184,318],[-92,343],[-30,363],[3,412],[114,412],
     [155,348],[155,265],[184,130],[184,25]];
   for(const z of [-180,180]) {
-    polygonPlate(g,m,outline,22,[0,0,z],[0,0,1],[[bearingX,bearingY,80]]);
+    polygonPlate(g,m,outline,22,[0,0,z],[0,0,1],[[bearingX,bearingY,98]]);
     // Large triangular lightening opening beneath the sloped web.
     const triangle=new THREE.Shape();
     triangle.moveTo(-153,62);triangle.lineTo(10,62);triangle.lineTo(10,182);
@@ -600,7 +600,11 @@ function buildG(g,m,explode,labels) {
     const outline=[[-300,75],[-300,625],[-268,730],[-230,850],[-210,960],
       [210,960],[230,850],[268,730],[300,625],[300,75],
       [245,50],[-245,50]];
-    polygonPlate(g,m,outline,22,[0,0,z],[0,0,1],[[0,cy,242]]);
+    // The upper three front ports must be pierced through the enclosure
+    // wall, not merely annular fittings attached onto a solid front panel.
+    const faceHoles=[[0,cy,242]];
+    if(z>0) for(const x of [-155,0,155])faceHoles.push([x,819,39.5]);
+    polygonPlate(g,m,outline,22,[0,0,z],[0,0,1],faceHoles);
     // Lower foot bridges, with the main bore remaining open above them.
     box(g,m,[605,42,55],[0,34,z]);
   }
@@ -634,80 +638,176 @@ function buildG(g,m,explode,labels) {
   if(labels) {addLabel(g,'主法兰 Ø580',[0,730,zf+80],155);addLabel(g,'上部 3 接口',[0,955,zf+60],130);}
 }
 
-// H — Ø540 end faces, 680 mm axial overall length (650 between faces), 890 mm height.
-function buildH(g,m,explode,labels) {
-  const W=470, L=680, H=890, cy=552, zEnd=L/2;
-  // Cylindrical through-chamber: Ø530 OD, Ø430 internal bore, Ø540 end flanges.
-  annulus(g,m,265,215,L-52,[0,cy,0],[0,0,1]);
-  for (const sign of [-1,1]) {
-    annulus(g,m,270,215,28,[0,cy,sign*(zEnd-14)],[0,0,sign],
-      {radius:250,count:12,holeRadius:9,start:Math.PI/12});
-    annulus(g,m,250,218,12,[0,cy,sign*(zEnd-35)],[0,0,sign]);
-  }
-  // According to the longitudinal side view, top and bottom are continuous
-  // horizontal mounting *plates* (axial 650), NOT a four-sided cube frame.
-  box(g,m,[470,30,L],[0,H-16,0]);
-  box(g,m,[420,30,L],[0,16,0]);
-  // Four corner drilled mounting feet, as visible in the end elevations.
-  for (const x of [-193,193])for (const z of [-285,285])
-    roundShoulder(g,m,23,11,12,[x,35,z],[0,1,0]);
-  // Narrow upper side shelves follow the two end elevations while leaving
-  // the central tube clearly visible in 3D.
-  for(const z of [-zEnd+24,zEnd-24]){
-    beamBetween(g,m,[-205,846,z],[-170,765,z],24,17);
-    beamBetween(g,m,[205,846,z],[170,765,z],24,17);
-  }
-  // Bottom saddle: four flared side plates and two long rails leave open voids.
-  for (const z of [-260,260]) {
-    polygonPlate(g,m,[[-300,45],[-255,275],[-185,315],[-172,245],[-205,90],[-235,45]],24,[0,0,z]);
-    polygonPlate(g,m,[[300,45],[255,275],[185,315],[172,245],[205,90],[235,45]],24,[0,0,z]);
-  }
-  for (const x of [-250,250]) {
-    box(g,m,[62,35,L],[x,18,0]);
-    beamBetween(g,m,[x,65,-280],[x,300,-120],26,31);
-    beamBetween(g,m,[x,65,280],[x,300,120],26,31);
-    beamBetween(g,m,[x,310,-260],[x,600,-75],24,28);
-    beamBetween(g,m,[x,310,260],[x,600,75],24,28);
-  }
-  // Two lower cast cheeks connect the cylindrical body to the service manifold.
-  for (const z of [-270,270]) {
-    polygonPlate(g,m,[[-230,42],[230,42],[235,280],[140,310],[-140,310],[-235,280]],23,[0,0,z],
-      [[-130,148,40],[0,148,40],[130,148,40]]);
-  }
-  // Three Ø71 openings in Ø110 seats on the front manifold (see front elevation).
-  for (const x of [-130,0,130]) {
-    annulus(g,m,55,35.5,36,[x,148,zEnd-12],[0,0,1]);
-    annulus(g,m,59,35.5,8,[x,148,zEnd+8],[0,0,1],
-      {radius:48,count:4,holeRadius:4,start:Math.PI/4});
-  }
-  // Opposite lower service connection, Ø142 nominal seat with central opening.
-  annulus(g,m,71,43,42,[-185,155,-zEnd+12],[0,0,-1]);
-  annulus(g,m,83,43,12,[-185,155,-zEnd-12],[0,0,-1],
-    {radius:68,count:6,holeRadius:6});
-  // Upper Ø120 inspection neck and side Ø96 auxiliary outlet.
-  annulus(g,m,60,40,62,[0,829,0],[0,1,0]);
-  annulus(g,m,75,40,15,[0,867,0],[0,1,0],{radius:61,count:6,holeRadius:5});
-  annulus(g,m,48,28,58,[278,195,0],[1,0,0]);
-  annulus(g,m,60,28,12,[307,195,0],[1,0,0],{radius:47,count:6,holeRadius:5});
-  // Cast mounting lugs at the base; through-hole rings remain visibly open.
-  for (const x of [-280,280]) for (const z of [-260,260])
-    annulus(g,m,18,9,16,[x,47,z],[0,1,0]);
-  // Inclined ribs are prominent in longitudinal B-B section. Create four
-  // triangular end supports with open space between them (no false cage).
-  for(const z of [-205,205]){
-    for(const sign of [-1,1]){
-      polygonPlate(g,m,[[sign*270,825],[sign*255,785],[sign*156,666],[sign*260,700]],21,
-        [0,0,z],[0,0,1]);
-      polygonPlate(g,m,[[sign*255,320],[sign*240,370],[sign*165,430],[sign*210,295]],24,
-        [0,0,z],[0,0,1]);
+// Hollow barrel with a radial access hole for the H top inspection neck.
+// Unlike an opaque stacked cylinder, the top opening passes through BOTH
+// outer and inner walls. Angular/axial tessellation gives an approximate
+// circular edge; this is not a B-rep manufacturing operation.
+function piercedBarrel(group, material, outer, inner, length, centerY, portRadius=34) {
+  const nAngles=240, nZ=120;
+  const isCut=(a,z,r)=>{
+    const nearZero=Math.atan2(Math.sin(a),Math.cos(a));
+    const along=nearZero*r;
+    return along*along+z*z<portRadius*portRadius;
+  };
+  for(const [radius,reverse] of [[outer,false],[inner,true]]){
+    const positions=[],indices=[];
+    for(let i=0;i<=nAngles;i++){
+      const a=i*TAU/nAngles;
+      for(let j=0;j<=nZ;j++){
+        const z=-length/2+length*j/nZ;
+        positions.push(radius*Math.sin(a),centerY+radius*Math.cos(a),z);
+      }
     }
+    const stride=nZ+1;
+    for(let i=0;i<nAngles;i++)for(let j=0;j<nZ;j++){
+      const a=(i+.5)*TAU/nAngles;
+      const z=-length/2+length*(j+.5)/nZ;
+      if(isCut(a,z,radius))continue;
+      const p=i*stride+j,q=p+stride;
+      if(reverse)indices.push(p,p+1,q,q,p+1,q+1);
+      else indices.push(p,q,p+1,q,q+1,p+1);
+    }
+    const geometry=new THREE.BufferGeometry();
+    geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+    geometry.setIndex(indices);geometry.computeVertexNormals();
+    addMesh(group,geometry,material);
   }
-  // Small service pads on the lower side and the intermediate machined seats.
-  for(const z of [-265,265])for(const x of [-285,285])
-    roundShoulder(g,m,25,12,14,[x,47,z],[0,1,0]);
-  for(const z of [-185,185])
-    roundShoulder(g,m,48,26,22,[285,325,z],[1,0,0],6);
-  if (labels) { addLabel(g,'Ø540 法兰 · 12-Ø18',[0,835,zEnd+65],165); addLabel(g,'3 × Ø71 接口',[0,60,zEnd+65],145); }
+  // Close wall thickness at the two axial ends, away from the radial access.
+  for(const z of [-length/2,length/2])annulus(group,material,outer,inner,12,[0,centerY,z],[0,0,1]);
+}
+
+// H — hollow cylindrical cast housing, orthographic envelope from the original
+// front, longitudinal and B-B / G-G sections. Axis Z: 680 mm overall;
+// principal end flange OD Ø540; vertical overall 890 mm.
+// The local ribs / casting fillets are visibly reconstructed, not production CAD.
+function buildH(g,m,explode,labels) {
+  const L=680, half=340, cy=552, outer=265, inner=235;
+  const details=[];
+  // Stages are independent: an optional rib that cannot be triangulated should
+  // not make the entire housing disappear. Central annular body is generated first.
+  const stage=(name,action)=>{
+    try { action();details.push({name,ok:true}); }
+    catch(error){
+      details.push({name,ok:false,error:String(error?.message||error)});
+      console.warn(`[2027 H] ${name} detail omitted:`,error);
+    }
+  };
+
+  // FRONT + REAR ENDS: machined bore remains physically open. 12 drilled holes
+  // are cut through the extrusion, not drawn as opaque circular marks.
+  piercedBarrel(g,m,outer,inner,L-46,cy,34);
+  for(const sign of [-1,1]) {
+    annulus(g,m,270,235,30,[0,cy,sign*325],[0,0,1],
+      {radius:252,count:12,holeRadius:9,start:Math.PI/12});
+    annulus(g,m,244,235,10,[0,cy,sign*306],[0,0,1]);
+  }
+  // The two narrow circular shoulders and side ribs are distinct from the
+  // perimeter bolts (4-M16) shown in the front elevation.
+  stage('环形加强带',()=>{
+    for(const z of [-215,215]) annulus(g,m,269,263,12,[0,cy,z],[0,0,1]);
+    for(const z of [-334,334]) {
+      for(const a of [0,Math.PI/2,Math.PI,3*Math.PI/2]){
+        const x=263*Math.cos(a),y=cy+263*Math.sin(a);
+        // Four broad tapped-location pads on a proper flange face.
+        box(g,m,[38,32,14],[x,y,z],[0,0,0]);
+      }
+    }
+  });
+
+  // ROOF + BOTTOM: plates are drawn in the longitudinal view; the top Ø62
+  // inspection passage is cut through its plate rather than covered by a box.
+  stage('上下安装板和通孔',()=>{
+    const roofHoles=[[0,0,31]];
+    const footHoles=[[-271,-281,11],[271,-281,11],[-271,281,11],[271,281,11]];
+    rectanglePlate(g,m,630,680,30,[0,875,0],[0,1,0],roofHoles,null,5);
+    rectanglePlate(g,m,630,680,30,[0,15,0],[0,1,0],footHoles,null,5);
+    // Four narrow base rails connect the foot plate to the side castings.
+    for(const x of [-282,282])box(g,m,[39,51,575],[x,66,0]);
+  });
+
+  // FRONT BELOW THE BORE: the lower front elevation contains three Ø110 seats
+  // with ~Ø71 centre passages. A three-hole faceplate is explicitly perforated
+  // so the camera sees through each opening.
+  stage('三孔下连接座',()=>{
+    const faceZ=334;
+    const faceHoles=[[-137,0,35.5],[0,0,35.5],[137,0,35.5]];
+    rectanglePlate(g,m,455,156,26,[0,168,faceZ],[0,0,1],faceHoles,null,25);
+    for(const x of [-137,0,137]){
+      annulus(g,m,55,35.5,22,[x,168,faceZ+15],[0,0,1],
+        {radius:46,count:4,holeRadius:4.5,start:Math.PI/4});
+      // Short pierced passage behind front seat (not a fake solid cylinder).
+      annulus(g,m,46,35.5,50,[x,168,faceZ-30],[0,0,1]);
+    }
+  });
+
+  // Longitudinal elevation and G-G section: the supports are curved triangular
+  // webs, open between the side frames. Avoid the false solid rectangular cage
+  // that appeared in earlier screenshots.
+  stage('下部开口支承和加强筋',()=>{
+    for(const z of [-276,276]) {
+      for(const sign of [-1,1]){
+        const profile=[
+          [sign*290,57],[sign*239,58],[sign*175,256],
+          [sign*204,319],[sign*264,292]
+        ];
+        polygonPlate(g,m,profile,24,[0,0,z],[0,0,1]);
+        // Inside the radial web, a triangular opening follows the orthographic
+        // visible void underneath the cylindrical housing.
+        polygonPlate(g,m,[[sign*279,70],[sign*258,150],[sign*230,260],
+          [sign*211,272],[sign*241,80]],14,[0,0,z-17],[0,0,1]);
+      }
+    }
+    for(const x of [-262,262]) {
+      box(g,m,[26,225,26],[x,170,-277]);
+      box(g,m,[26,225,26],[x,170,277]);
+    }
+    // The two end views show a narrow central dividing rib.
+    for(const z of [-293,293])box(g,m,[18,95,24],[0,75,z]);
+  });
+
+  // The side view has four diagonal cast webs from the roof toward the barrel
+  // and the base, not vertical wall panels. Profiles are extruded along X.
+  stage('纵向斜腹板',()=>{
+    for(const x of [-225,225]) {
+      for(const sign of [-1,1]) {
+        const z0=sign*276,z1=sign*45;
+        beamBetween(g,m,[x,846,z0],[x*.83,690,z1],24,28);
+        beamBetween(g,m,[x*.9,320,z0],[x*.68,440,z1],20,24);
+      }
+    }
+    for(const z of [-278,278])for(const sign of [-1,1]){
+      beamBetween(g,m,[sign*282,70,z],[sign*190,295,z],20,27);
+    }
+  });
+
+  // Inspection neck through top plate (Ø120 collar, Ø62 open core), both
+  // faces remain hollow. The side Ø96 boss is approximately located.
+  stage('顶部与侧向服务接口',()=>{
+    annulus(g,m,60,31,72,[0,835,0],[0,1,0]);
+    annulus(g,m,73,31,13,[0,891,0],[0,1,0],
+      {radius:62,count:6,holeRadius:5,start:Math.PI/6});
+    annulus(g,m,48,28,55,[280,201,14],[1,0,0]);
+    annulus(g,m,62,28,15,[309,201,14],[1,0,0],
+      {radius:49,count:6,holeRadius:5});
+    annulus(g,m,71,42.5,41,[-182,156,-308],[0,0,-1]);
+    annulus(g,m,82,42.5,15,[-182,156,-338],[0,0,-1],
+      {radius:68,count:6,holeRadius:6});
+  });
+
+  stage('附加小连接耳座',()=>{
+    for(const z of [-310,310])for(const sign of [-1,1]){
+      annulus(g,m,20,9,10,[sign*287,420,z],[1,0,0]);
+      annulus(g,m,23,10,10,[sign*282,177,z],[0,1,0]);
+    }
+  });
+  g.userData.detailStages=details;
+  g.userData.drawingAxes='Z: 680 mm axial; Y: 890 mm height; X: section width';
+  g.userData.schematicElements=['Ø540 end flanges / 12-Ø18 holes','3×Ø71 lower ports','Ø120 roof neck / Ø62 passage','front and longitudinal webs','base / roof plates'];
+  if(labels){
+    addLabel(g,'H 件: 轴向 680 mm',[0,940,0],185);
+    addLabel(g,'Ø540 两端法兰 / 12×Ø18',[0,570,430],155);
+    addLabel(g,'三孔连接座',[0,110,430],140);
+  }
 }
 
 const builders = { A: buildA, B: buildB, C: buildC, D: buildD, E: buildE, F: buildF, G: buildG, H: buildH };
@@ -718,7 +818,7 @@ export function buildPart(id, material, explode = 0, labels = false) {
   (builders[id] || buildB)(root, material, explode, labels);
   root.userData.units = 'mm';
   root.userData.modelStatus = 'drawing-based preview, incomplete dimensions inferred';
-  root.userData.revision = '1.5';
+  root.userData.revision = '1.6';
   return root;
 }
 
