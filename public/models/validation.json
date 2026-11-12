@@ -79,33 +79,33 @@
   },
   {
     "part": "D",
-    "volume_mm3": 181643150,
+    "volume_mm3": 168676937,
     "solids": 1,
     "bounds_mm": [
       [
-        -1050.0,
-        1050.0
+        -1045.0,
+        1048.0
       ],
       [
         20.0,
-        775.0
+        731.0
       ],
       [
-        -350.0,
-        350.0
+        -485.5,
+        485.5
       ]
     ],
-    "triangles": 4200,
-    "gltf_bytes": 152628,
+    "triangles": 8198,
+    "gltf_bytes": 264060,
     "cad_valid": true,
     "watertight_glb": true,
     "sharp_normals_degrees": 36,
-    "seconds": 0.2,
+    "seconds": 0.9,
     "status": "Single valid CAD B-rep; hard-edge visualization preview; not drawing-complete"
   },
   {
     "part": "E",
-    "volume_mm3": 79254958,
+    "volume_mm3": 98481796,
     "solids": 1,
     "bounds_mm": [
       [
@@ -113,20 +113,20 @@
         1020.0
       ],
       [
-        -8.0,
-        524.0
+        -0.0,
+        530.0
       ],
       [
-        -472.0,
-        472.0
+        -655.0,
+        655.0
       ]
     ],
-    "triangles": 27216,
-    "gltf_bytes": 983032,
+    "triangles": 43850,
+    "gltf_bytes": 1578612,
     "cad_valid": true,
     "watertight_glb": true,
     "sharp_normals_degrees": 36,
-    "seconds": 1.5,
+    "seconds": 4.5,
     "status": "Single valid CAD B-rep; hard-edge visualization preview; not drawing-complete"
   },
   {

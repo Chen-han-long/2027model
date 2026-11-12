@@ -16,7 +16,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
 DEST=ROOT/'public'/'models'; DEST.mkdir(exist_ok=True,parents=True)
-GLTF_MESH_TOLERANCE=1.8 # mm linear tessellation precision, front-end smoothed shading
+GLTF_MESH_TOLERANCE=1.3 # mm tessellation. Sharp edges kept by crease normals
 
 def box(w,h,d,x=0,y=0,z=0):
     return cq.Workplane('XY').box(w,h,d).translate((x,y,z)).val()
@@ -59,6 +59,26 @@ def flange(outer,inner,thick,center,axis=(0,0,1),bolts=0,pitch=0,bolt_r=8,phase=
             f=cut_round(f,bolt_r,thick+16,p.toTuple(),axis)
     return f
 
+def cut_holes_separately(shape, hole_specs):
+    """Cuts bores from a list of (diameter, depth, center, axis) callouts.
+    All dimensions are millimetres. This models nominal pilot bores for tapped
+    features, not physical helical threads; avoids false decorative geometry.
+    """
+    for diameter,depth,center,axis in hole_specs:
+        shape=cut_round(shape,diameter/2,depth,center,axis)
+    return shape.clean()
+
+def slot_rounded(width,length,thick,center,axis='xy'):
+    """Capsule slot cutter, long axis Y of XY plane. Used only where slots
+    are visible and the pitch placement has been checked against drawings.
+    """
+    span=length-width
+    if span<=0:raise ValueError('Slot length must exceed width')
+    shape=box(width,span,thick,0,0,0)
+    shape=shape.fuse(cyl(width/2,thick,(0,span/2,0)))
+    shape=shape.fuse(cyl(width/2,thick,(0,-span/2,0)))
+    return shape.clean().translate(cq.Vector(*center))
+
 def build_A():
     """Rotary worktable: open radial windows, concentric shoulders, actual through holes."""
     # All in XY plane, Z is worktable axle; overall 1640 OD.
@@ -70,10 +90,25 @@ def build_A():
         beam=box(r1-r0,55,74,(r0+r1)/2,0,-5)
         # rotate around Z; webs are true solids, not overlapping faces
         ribs.append(beam.rotate((0,0,0),(0,0,1),a*180/math.pi))
+    # Intermediate machined annular deck shown in A-A and bottom plan. It joins
+    # the radial ribs (not a fake top cap closing all the windows).
+    rings.append(hollow(727,640,22,(0,0,38)))
     a=join(*(rings+ribs))
+    # Eight radial-plan obround windows on the inner annular machining deck.
+    # Their centre layout is proportional to the plan: local slot widths are
+    # NOT fully dimensioned and are marked as approximate in the manifest.
+    for i in range(8):
+        phi=i*math.tau/8
+        cutter=slot_rounded(27,74,34,(0,0,0))
+        cutter=cutter.rotate((0,0,0),(0,0,1),phi*180/math.pi)
+        cutter=cutter.translate(cq.Vector(686*math.cos(phi),686*math.sin(phi),38))
+        a=a.cut(cutter)
     # Uniform bolt holes go through the top annular deck, no floating bolt heads.
     pts=[(796*math.cos(t),796*math.sin(t),80) for t in [i*math.tau/24 for i in range(24)]]
-    a=holes(a,pts,9,85)
+    a=holes(a,pts,7.0,85)
+    # Four hub mounting holes; the plan calls out four M24 positions.
+    a=holes(a,[(290*math.cos(i*math.pi/2),290*math.sin(i*math.pi/2),53)
+               for i in range(4)],10.3,60)
     return a.rotate((0,0,0),(1,0,0),-90)
 
 def build_B():
@@ -97,6 +132,17 @@ def build_B():
     # Base fixing positions, through the base, not bolt cylinders.
     fixing=[(x,13,z) for x in (-143,143) for z in (-164,164)]
     b=holes(b,fixing,11,45,(0,1,0))
+    # Re-drill the *assembled* bearing flange: otherwise the sleeve below the
+    # flange secretly fills every Ø12 hole even though the flange itself is cut.
+    for face_z in (-190,190):
+        for pt in screw_circle(8,117,(53,283,face_z),(0,0,1),phase=math.pi/8):
+            b=cut_round(b,6,43,pt.toTuple())
+    # Further M8/M6 pilot bores visible on the bottom and side installation
+    # faces. Their exact pitches are from orthographic proportions, not a
+    # certified coordinate dimension.
+    b=holes(b,[(x,13,z) for x in (-133,133) for z in (-92,92)],4.2,42,(0,1,0))
+    b=holes(b,[(x,y,z) for z in (-150,150)
+                   for x,y in [(-128,118),(-70,118),(-128,197),(-70,197)]],3.3,30)
     return b.clean()
 
 def build_C():
@@ -140,68 +186,14 @@ def build_C():
     return body.clean()
 
 def build_D():
-    """Long continuous cast lifting arm with two open bearings and supporting cheek."""
-    primary=hollow(310,162.5,700,(0,330,0))
-    small=hollow(163,110,310,(510,195,0))
-    # Wide, continuous cambered arm with flared support at both ends. Outline
-    # follows the orthographic silhouette (not speculative thin flying struts).
-    contour=[
-      (-1050,655),(-880,657),(-705,629),(-520,545),(-345,402),
-      (-235,435),(-135,516),(-20,555),(110,543),
-      (300,455),(480,438),(645,472),(815,580),(1050,775),
-      (1010,685),(815,500),(660,395),(520,358),
-      (350,369),(190,427),(40,455),(-105,437),
-      (-235,348),(-340,320),(-520,448),(-695,548),(-895,597),(-1050,601)]
-    arm=poly(contour,110)
-    # Lower solid web creates the cast transition between the bearing bosses.
-    cheek=poly([(80,150),(220,70),(425,70),(580,155),
-                (450,315),(290,330),(130,300)],135)
-    d=join(primary,small,arm,cheek)
-    # Drill both bearing bores after all material is fused. Never leave a
-    # visually blocked hole in the cheek support.
-    d=cut_round(d,162.5,800,(0,330,0))
-    d=cut_round(d,110,400,(510,195,0))
-    return d.clean()
+    """Use the drawing-review reconstruction in rebuild_DE.py."""
+    from rebuild_DE import new_D
+    return new_D()
 
 def build_E():
-    """2040-long semicircular arched bearing cover with genuine cut-through inspection hatch."""
-    L,R=2040,410
-    shell=hollow(R,R-26,L,(0,0,0),(1,0,0))
-    shell=shell.intersect(box(L+50,450,900,0,225,0)) # y>=0, half-cylinder
-    # Actual aperture through arch (approx 590 x 410 footprint).
-    aperture=box(590,450,410,400,475,0)
-    shell=shell.cut(aperture)
-    # end ribs; upper halves. Use separate slender shell ribs to minimise clutter.
-    for x in (-1004,1004,-600):
-        ring=hollow(R+10,R-35,18,(x,0,0),(1,0,0)).intersect(box(38,450,890,x,225,0))
-        shell=shell.fuse(ring)
-    # Base flanges along shell; these are two thin strips extending outward.
-    for side in [-1,1]:
-        rail=box(2040,28,82,0,6,side*431)
-        shell=shell.fuse(rail)
-    for side in [-1,1]:
-        holespace=[(x,5,side*431) for x in range(-925,926,185)]
-        shell=holes(shell,holespace,9,60,(0,1,0))
-    # Four box walls of the raised hatch; bottom is open, upper ring is open.
-    # Their foot overlaps arch so OCC produces one watertight casting.
-    # Frame wall with a single rectangular cut. Sharp parallel surfaces and
-    # constant 22 mm wall; no bulging corner cylinders or oversized fillets.
-    hatch_frame=box(740,176,570,400,422,0)
-    hatch_frame=hatch_frame.cut(box(692,200,522,400,422,0))
-    shell=join(shell,hatch_frame)
-    # Remove the arched roof below the access hatch; the hatch MUST be open.
-    shell=shell.cut(box(673,360,505,400,505,0))
-    # A 20 mm horizontal top mounting lip, drilled and open in the centre.
-    lip=box(785,20,615,400,514,0).cut(box(688,30,515,400,514,0))
-    ringholes=[(x,514,z) for x in [74,226,378,530,704] for z in [-278,278]]
-    ringholes += [(x,514,z) for x in [50,750] for z in [-140,0,140]]
-    lip=holes(lip,ringholes,8,30,(0,1,0))
-    shell=shell.fuse(lip)
-    # Circular inspection port on left end of arch; actual through bore.
-    boss=hollow(75,40,80,(-620,413,0),(0,1,0))
-    shell=shell.fuse(boss)
-    shell=cut_round(shell,40,180,(-620,397,0),(0,1,0))
-    return shell.clean()
+    """Use the drawing-review reconstruction in rebuild_DE.py."""
+    from rebuild_DE import new_E
+    return new_E()
 
 def build_F():
     """A genuinely thin curved support bracket, width 440, not a deep cage."""
@@ -213,7 +205,11 @@ def build_F():
            (70,106),(0,124),(-70,106),(-125,83),(-136,108),(-161,114),(-177,75),(-208,75),(-220,36)]
     f=poly(lower+upper,30,0)
     # Main lower mounting bores into extrusion; full circle through x-y profile.
-    f=holes(f,[(x,y,0) for x,y in [(-186,51),(-106,61),(106,61),(186,51)]],13,45)
+    # Six machined front holes at the three visible attachment stations on
+    # each side, including the lower end holes. Diameter is inferred from
+    # the scale where the callout is unclear; not used as a certified bore.
+    side_holes=[(-188,28),(-172,57),(-109,68),(109,68),(172,57),(188,28)]
+    f=holes(f,[(x,y,0) for x,y in side_holes],10.0,42)
     # Two raised eye supports, the Ø40 holes cut right through their steel.
     for x in (-143,143):
         f=f.fuse(hollow(31,20,105,(x,108,0)))
@@ -245,14 +241,36 @@ def build_G():
         port=hollow(66,39.5,65,(x,828,447))
         g=g.fuse(port)
         g=cut_round(g,39.5,125,(x,828,445))
+        # Repeated small M8 pilot bores in each top interface flange.
+        for i in range(6):
+            angle=math.tau*i/6
+            g=cut_round(g,4.2,24,(x+54*math.cos(angle),828+54*math.sin(angle),475))
+    # Front lower service opening with its true annular boss, shown in
+    # the side elevation. Exact lower-port centre remains approximate.
+    g=g.fuse(hollow(48,30,28,(0,135,443)))
+    g=cut_round(g,30,80,(0,135,439))
+    # Recut the 12 Ø16 holes through the entire face / flange union, because
+    # the adjoining panel otherwise fills part of the bores from behind.
+    for face_z in (-458,458):
+        for pt in screw_circle(12,266,(0,cy,face_z),(0,0,1),phase=math.pi/12):
+            g=cut_round(g,8,75,pt.toTuple())
     return g.clean()
 
 def build_H():
     """540-mm ring flanges, 680 axial, three lower openings and open supports."""
     cy=565
-    h=hollow(265,218,662,(0,cy,0))
+    h=hollow(265,215,662,(0,cy,0))
     for z in [-325,325]:
-        h=h.fuse(flange(270,218,30,(0,cy,z),(0,0,1),12,252,8,math.pi/12))
+        h=h.fuse(flange(270,215,30,(0,cy,z),(0,0,1),12,252,9,math.pi/12))
+        # Four M16 nominal threaded stations in the front ring, offset from
+        # the 12 through holes. For web display the hole is minor-diameter
+        # Ø14 pilot, not a rendered helical thread.
+        for point in screw_circle(4,236,(0,cy,z),(0,0,1),phase=0):
+            h=cut_round(h,7.0,38,point.toTuple())
+        # Machined Ø440 counterbore from the Ø430 through-bore and narrow
+        # seal-groove near the inner diameter of each flange.
+        h=cut_round(h,220,13,(0,cy,z+math.copysign(11,z)))
+        h=h.cut(hollow(228,224,5,(0,cy,z+math.copysign(13,z))))
     # Narrow upper/lower axial plates, not closed rectangular cage.
     h=h.fuse(box(470,26,650,0,865,0))
     h=h.fuse(box(420,28,650,0,16,0))
@@ -273,17 +291,32 @@ def build_H():
     # Two cheek blocks bridge the manifold to the cast end support, outside all ports.
     for x in [-196,196]: h=h.fuse(box(28,90,50,x,166,297))
     for x in [-130,0,130]:
-        h=h.fuse(hollow(54,35.5,28,(x,155,340)))
+        h=h.fuse(hollow(55,35.5,28,(x,155,340)))
+        # Drawing: 3 × 6-ST10×1.5 EQS around the three Ø71 ports.
+        # Bore approximates the thread pilot Ø8.5; nominal pitch positions
+        # are dimensioned in view, angular phase kept symmetric.
+        for i in range(6):
+            theta=i*math.tau/6
+            px=x+47*math.cos(theta);py=155+47*math.sin(theta)
+            h=cut_round(h,4.25,25,(px,py,345))
     # Smooth bearing-to-stand transition, kept far outside the central duct.
     for side in [-1,1]:
         h=h.fuse(poly([(side*100,302),(side*174,322),(side*230,240),(side*200,155)],65,0))
     # Top service boss: cut through inner wall and through top plate after union.
     h=h.fuse(hollow(60,31,115,(0,835,0),(0,1,0)))
     h=cut_round(h,31,170,(0,829,0),(0,1,0))
+    # 6-M10 (nominal) holes around the top Ø120 service ring, approximated
+    # by Ø8.5 pilot bores. They terminate within the roof assembly.
+    for pt in screw_circle(6,47,(0,889,0),(0,1,0),phase=math.pi/6):
+        h=cut_round(h,4.25,27,pt.toTuple(),(0,1,0))
     # Smaller side service port on right lower support face.
     h=h.fuse(box(90,150,78,220,93,0))
-    h=h.fuse(hollow(55,32,60,(253,185,0),(1,0,0)))
-    h=cut_round(h,32,85,(253,185,0),(1,0,0))
+    # The annotated lower auxiliary boss is Ø142 outside / Ø85 bore.
+    h=h.fuse(hollow(71,42.5,60,(253,185,0),(1,0,0)))
+    h=cut_round(h,42.5,85,(253,185,0),(1,0,0))
+    # Six small nominal ST12 pilot holes in the Ø142 auxiliary interface.
+    for pt in screw_circle(6,57,(278,185,0),(1,0,0),phase=0):
+        h=cut_round(h,5.1,22,pt.toTuple(),(1,0,0))
     # Thin supporting webs attach to the underside of the cylindrical casting.
     # They replace speculative large blocks that looked like inflated lumps.
     for z in [-278,278]:
@@ -296,6 +329,13 @@ def build_H():
     h=h.fuse(box(22,260,70,-180,145,0))
     # Bottom mounting holes in plate.
     h=holes(h,[(x,16,z) for x in (-180,180) for z in (-280,280)],10,45,(0,1,0))
+    # Recut every hole *after* fusion. The long barrel continues beneath the
+    # end flange for a few millimetres and would otherwise plug the holes.
+    for face_z in (-325,325):
+        for pt in screw_circle(12,252,(0,cy,face_z),(0,0,1),phase=math.pi/12):
+            h=cut_round(h,9,64,pt.toTuple())
+        for pt in screw_circle(4,236,(0,cy,face_z),(0,0,1),phase=0):
+            h=cut_round(h,7,52,pt.toTuple())
     return h.clean()
 
 BUILDERS={c:globals()['build_'+c] for c in 'ABCDEFGH'}
@@ -384,4 +424,11 @@ if __name__=='__main__':
         except Exception as ex:
             import traceback; traceback.print_exc();print('ERROR',name,str(ex),flush=True)
             if os.environ.get('STRICT_CAD','1')=='1':sys.exit(1)
-    (DEST/'validation.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+    # Incremental generation is safe: re-exporting D alone must not erase the
+    # metadata of A/B/C/E/F/G/H and break the GitHub Pages prebuild check.
+    manifest=DEST/'validation.json'
+    previous=json.loads(manifest.read_text()) if manifest.exists() else []
+    records={r['part']:r for r in previous}
+    records.update({r['part']:r for r in report})
+    manifest.write_text(json.dumps([records[k] for k in sorted(records)],
+                                   ensure_ascii=False,indent=2)+'\n')

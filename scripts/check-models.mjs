@@ -65,7 +65,7 @@ for(const name of expected){
   assert.equal(m.cad_valid,true,`${name} 原始 CAD 未通过校验`);
   assert.equal(m.watertight_glb,true,`${name} 仍然存在非水密网格`);
   assert.equal(m.solids,1,`${name} 存在游离 CAD 实体`);
-  assert.equal(m.sharp_normals_degrees,36,`${name} 并非硬边法线版本，请上传 2.3 模型`);
+  assert.equal(m.sharp_normals_degrees,36,`${name} 并非硬边法线版本，请上传 2.4 模型`);
   assert(m.triangles>200,`${name} 三角形数量异常`);
   const ext=m.bounds_mm.map(pair=>pair[1]-pair[0]);
   assert(ext.every(x=>Number.isFinite(x)&&x>40&&x<5000),`${name} 包围尺寸异常: ${ext}`);

@@ -225,7 +225,7 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,focusHo
       }catch(e){st.scene.remove(root);if(!isImported)disposeTree(root,st.material);console.error(e);setError('无法显示模型：'+e.message);setLoading(false);}
     };
     if(imported){const copy=imported.object.clone(true);commit(copy,true);return;}
-    const url=`${import.meta.env.BASE_URL}models/${id}.glb?v=2.3`;
+    const url=`${import.meta.env.BASE_URL}models/${id}.glb?v=2.4`;
     new GLTFLoader().load(url,gltf=>commit(gltf.scene,false),undefined,e=>{
       if(req!==requestId.current)return;
       console.error('Unable to load drawing solid',url,e);
