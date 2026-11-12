@@ -157,7 +157,7 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,project
     try{
       renderer=new THREE.WebGLRenderer({alpha:true,antialias:true,preserveDrawingBuffer:true,powerPreference:'high-performance'});
       renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));renderer.setClearColor(0x000000,0);
-      renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.45;
+      renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.18;
       renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
       renderer.domElement.style.cssText='width:100%;height:100%;display:block;touch-action:none;';
       el.appendChild(renderer.domElement);
@@ -165,15 +165,15 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,project
       const camera=projection==='orthographic'?ortho:perspective;
       const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.075;
       controls.minPolarAngle=.005;controls.maxPolarAngle=Math.PI-.005;controls.enablePan=true;
-      scene.add(new THREE.AmbientLight('#dcecf7',1.35));scene.add(new THREE.HemisphereLight('#e8f4ff','#263e53',1.55));
-      const key=new THREE.DirectionalLight('#fff7e9',3);key.position.set(500,900,900);key.castShadow=true;
+      scene.add(new THREE.AmbientLight('#dcecf7',.9));scene.add(new THREE.HemisphereLight('#e8f4ff','#334a55',1.15));
+      const key=new THREE.DirectionalLight('#fff7e9',2.25);key.position.set(500,900,900);key.castShadow=true;
       key.shadow.mapSize.set(2048,2048);key.shadow.bias=-.00015;scene.add(key,key.target);
-      const fill=new THREE.DirectionalLight('#8ac7f2',1.5);fill.position.set(-600,400,-500);scene.add(fill);
+      const fill=new THREE.DirectionalLight('#8ac7f2',.9);fill.position.set(-600,400,-500);scene.add(fill);
       // Soft camera-following light keeps CAD details readable when viewing back faces.
-      const headlight=new THREE.DirectionalLight('#ffffff',1.0);
+      const headlight=new THREE.DirectionalLight('#ffffff',.4);
       headlight.castShadow=false;
       scene.add(headlight,headlight.target);
-      const material=new THREE.MeshPhysicalMaterial({color:'#8eabc0',metalness:.55,roughness:.35,clearcoat:.18,side:THREE.DoubleSide});
+      const material=new THREE.MeshPhysicalMaterial({color:'#8eabc0',metalness:.18,roughness:.67,clearcoat:0,side:THREE.DoubleSide});
       const ground=new THREE.Mesh(new THREE.PlaneGeometry(2800,2800),new THREE.ShadowMaterial({opacity:.26}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
       const grid=new THREE.GridHelper(2200,44,'#567587','#314654');scene.add(grid);
       const axes=new THREE.AxesHelper(180);scene.add(axes);
@@ -218,7 +218,7 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,project
       }catch(e){st.scene.remove(root);if(!isImported)disposeTree(root,st.material);console.error(e);setError('无法显示模型：'+e.message);setLoading(false);}
     };
     if(imported){const copy=imported.object.clone(true);commit(copy,true);return;}
-    const url=`${import.meta.env.BASE_URL}models/${id}.glb?v=2.0.1`;
+    const url=`${import.meta.env.BASE_URL}models/${id}.glb?v=2.2`;
     new GLTFLoader().load(url,gltf=>commit(gltf.scene,false),undefined,e=>{
       if(req!==requestId.current)return;
       console.error('Unable to load drawing solid',url,e);
@@ -232,7 +232,7 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,project
     st.material.transparent=options.opacity<1;st.material.depthWrite=options.opacity>=1;
     st.material.wireframe=options.wireframe;st.material.needsUpdate=true;
     st.key.intensity=options.light;st.key.castShadow=options.shadows;
-    if(st.headlight)st.headlight.intensity=Math.max(.18,options.light*.38);
+    if(st.headlight)st.headlight.intensity=Math.max(.16,options.light*.20);
     st.grid.visible=options.grid;st.ground.visible=options.shadows;st.axes.visible=options.axes;
     st.controls.autoRotate=options.rotate;st.controls.autoRotateSpeed=.7;
   },[options]);

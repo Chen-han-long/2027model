@@ -10,6 +10,8 @@ import cadquery as cq
 import numpy as np
 import trimesh
 import json, math, os, sys, time
+import vtk
+from vtk.util.numpy_support import numpy_to_vtk, numpy_to_vtkIdTypeArray, vtk_to_numpy
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
@@ -98,35 +100,44 @@ def build_B():
     return b.clean()
 
 def build_C():
-    """Two Ø315 horizontal flanges and smooth hollow R200 elbow; branch/inspection ports."""
-    # Three tangent segments connecting (0,0) and (600,440), all in XY plane.
-    # centreline: x goes right, curves up, then out right. Continuous spline.
-    pts=[(0,0),(95,0),(183,18),(256,62),(305,140),(346,247),(399,354),(468,417),(500,440)]
-    vecs=[cq.Vector(x,y,0) for x,y in pts]
-    # Smooth centerline path in XY; guide begins tangent to X.
-    edge=cq.Edge.makeSpline(vecs)
-    straight=cq.Edge.makeLine(vecs[-1], cq.Vector(620,440,0))
-    path=cq.Wire.assembleEdges([edge,straight])
-    outer=cq.Wire.makeCircle(119,cq.Vector(0,0,0),cq.Vector(1,0,0))
-    inner=cq.Wire.makeCircle(100,cq.Vector(0,0,0),cq.Vector(1,0,0))
+    """Cast S-shaped inspection pipe with two R200 bends and Ø315 end flanges.
+
+    Original drawing shows *horizontal, parallel* inlet/outlet centreline
+    tangents, centres separated by x=600 and y=440 mm. This is a hollow
+    swept solid, NOT a ballooned interpolating tube.
+    """
+    R=200.0  # TWO dimensioned R200 bends, separated by a 40 mm vertical tangent
+    V=cq.Vector
+    start=V(0,0,0);pa=V(100,0,0);pb=V(300,200,0)
+    pc=V(300,240,0);pd=V(500,440,0);end=V(600,440,0)
+    edges=[
+        cq.Edge.makeLine(start,pa),
+        cq.Edge.makeThreePointArc(pa,V(100+R/math.sqrt(2),200-R/math.sqrt(2),0),pb),
+        cq.Edge.makeLine(pb,pc),
+        cq.Edge.makeThreePointArc(pc,V(500-R/math.sqrt(2),240+R/math.sqrt(2),0),pd),
+        cq.Edge.makeLine(pd,end),
+    ]
+    path=cq.Wire.assembleEdges(edges)
+    outer=cq.Wire.makeCircle(119,start,V(1,0,0))
+    inner=cq.Wire.makeCircle(100,start,V(1,0,0))
     pipe=cq.Solid.sweep(outer,[inner],path,makeSolid=True,isFrenet=False)
-    left=flange(157.5,100,20,(-4,0,0),(1,0,0),8,130,9,math.pi/8)
-    right=flange(157.5,100,20,(602,440,0),(1,0,0),8,130,9,math.pi/8)
-    c=join(pipe,left,right)
-    # Trim any internal sweep extension flush with the flange exterior face.
-    c=c.cut(box(80,1200,600,659,440,0))
-    # 45-degree branch: passage drilled into host tube after union.
-    axis=(-.70710678,.70710678,0)
-    center=(230,326,0)
-    branch=hollow(69,40,90,center,axis)
-    lip=flange(70,40,18,(193,363,0),axis,8,56,5,math.pi/8)
-    c=join(c,branch,lip)
-    c=cut_round(c,40,190,center,axis)
-    # Ø56 inspection neck near the upper flange, passage radial to main pipe.
-    neck=hollow(28,16,120,(510,556,0),(0,1,0))
-    c=join(c,neck,flange(39,16,12,(510,604,0),(0,1,0)))
-    c=cut_round(c,16,190,(510,545,0),(0,1,0))
-    return c.clean()
+    # Real machined annular flange with sharp edges and eight THROUGH holes.
+    inlet=flange(157.5,100,20,(0,0,0),(1,0,0),8,130,9,math.pi/8)
+    outlet=flange(157.5,100,20,(600,440,0),(1,0,0),8,130,9,math.pi/8)
+    body=join(pipe,inlet,outlet)
+    # Upper-left Ø140 oblique inspection branch; cut internal connection
+    # after fusion to prevent a false plugged opening.
+    bdir=(-math.sqrt(.5),math.sqrt(.5),0)
+    junction=(190,92,0)
+    branch=hollow(68,40,185,(160,168,0),bdir)
+    lip=flange(70,40,18,(115,213,0),bdir,8,56,5,math.pi/8)
+    body=join(body,branch,lip)
+    body=cut_round(body,40,265,(154,174,0),bdir)
+    # Small vertical threaded inspection neck at the outlet straight.
+    body=join(body,hollow(28,16,82,(500,557,0),(0,1,0)),
+              flange(39,16,12,(500,593,0),(0,1,0)))
+    body=cut_round(body,16,144,(500,536,0),(0,1,0))
+    return body.clean()
 
 def build_D():
     """Long continuous cast lifting arm with two open bearings and supporting cheek."""
@@ -173,12 +184,19 @@ def build_E():
         shell=holes(shell,holespace,9,60,(0,1,0))
     # Four box walls of the raised hatch; bottom is open, upper ring is open.
     # Their foot overlaps arch so OCC produces one watertight casting.
-    dims=(700,550)
-    walls=[box(24,175,550,40,440,0),box(24,175,550,760,440,0),
-           box(744,175,24,400,440,286),box(744,175,24,400,440,-286)]
-    shell=join(shell,*walls)
-    # Recut hatch after union: ensures no hidden solids bridge the open top.
-    shell=shell.cut(box(675,370,525,400,480,0))
+    # Frame wall with a single rectangular cut. Sharp parallel surfaces and
+    # constant 22 mm wall; no bulging corner cylinders or oversized fillets.
+    hatch_frame=box(740,176,570,400,422,0)
+    hatch_frame=hatch_frame.cut(box(692,200,522,400,422,0))
+    shell=join(shell,hatch_frame)
+    # Remove the arched roof below the access hatch; the hatch MUST be open.
+    shell=shell.cut(box(673,360,505,400,505,0))
+    # A 20 mm horizontal top mounting lip, drilled and open in the centre.
+    lip=box(785,20,615,400,514,0).cut(box(688,30,515,400,514,0))
+    ringholes=[(x,514,z) for x in [74,226,378,530,704] for z in [-278,278]]
+    ringholes += [(x,514,z) for x in [50,750] for z in [-140,0,140]]
+    lip=holes(lip,ringholes,8,30,(0,1,0))
+    shell=shell.fuse(lip)
     # Circular inspection port on left end of arch; actual through bore.
     boss=hollow(75,40,80,(-620,413,0),(0,1,0))
     shell=shell.fuse(boss)
@@ -238,6 +256,11 @@ def build_H():
     # Narrow upper/lower axial plates, not closed rectangular cage.
     h=h.fuse(box(470,26,650,0,865,0))
     h=h.fuse(box(420,28,650,0,16,0))
+    # The drawing's longitudinal section has slender machined support webs
+    # directly beneath the top rail. These connect the rail into the cylinder,
+    # avoiding a visually floating plate without introducing inflated lumps.
+    for x in (-170,170):
+        h=h.fuse(box(16,116,520,x,811,0))
     # Lower side gussets on the front/back end plates -- keep voids below tube.
     gusset=[(-238,28),(-238,240),(-170,332),(-133,290),(-162,90),(-192,28)]
     for z in (-278,278):
@@ -261,31 +284,81 @@ def build_H():
     h=h.fuse(box(90,150,78,220,93,0))
     h=h.fuse(hollow(55,32,60,(253,185,0),(1,0,0)))
     h=cut_round(h,32,85,(253,185,0),(1,0,0))
-    # Joined gusset transitions prevent separated floating pieces in the GLB.
-    for x in [-120,120]:
-        for z in [-230,230]:
-            h=h.fuse(box(160,55,110,x,304,z))
-    h=h.fuse(box(130,165,85,-155,105,0))
+    # Thin supporting webs attach to the underside of the cylindrical casting.
+    # They replace speculative large blocks that looked like inflated lumps.
+    for z in [-278,278]:
+        for side in [-1,1]:
+            web=poly([(side*155,230),(side*205,230),
+                      (side*238,470),(side*142,382)],28,z)
+            h=h.fuse(web)
+    # Slender pier under the lower-left side boss ties the service block to the
+    # cast base (otherwise an independent CAD lump remains).
+    h=h.fuse(box(22,260,70,-180,145,0))
     # Bottom mounting holes in plate.
     h=holes(h,[(x,16,z) for x in (-180,180) for z in (-280,280)],10,45,(0,1,0))
     return h.clean()
 
 BUILDERS={c:globals()['build_'+c] for c in 'ABCDEFGH'}
 
+def crease_safe_mesh(mesh, angle=36.0):
+    """Split vertex normals ONLY along genuine geometric sharp edges.
+
+    The previous global averaged normal across flange-to-cylinder seams caused
+    machining edges to look rounded/puffy. This keeps cylindrical patches smooth
+    and preserves planar flange and square hatch edges.
+    """
+    poly=vtk.vtkPolyData()
+    points=vtk.vtkPoints()
+    points.SetData(numpy_to_vtk(np.ascontiguousarray(mesh.vertices,dtype=np.float32),deep=True))
+    poly.SetPoints(points)
+    faces=np.column_stack([np.full(len(mesh.faces),3,dtype=np.int64),mesh.faces.astype(np.int64)]).ravel()
+    cells=vtk.vtkCellArray()
+    cells.SetCells(len(mesh.faces),numpy_to_vtkIdTypeArray(np.ascontiguousarray(faces),deep=True))
+    poly.SetPolys(cells)
+    # vtkPolyDataNormals intentionally duplicates corner vertices for hard
+    # creases, which is normal in GLB and does not change solid CAD geometry.
+    n=vtk.vtkPolyDataNormals()
+    n.SetInputData(poly)
+    n.SetFeatureAngle(angle)
+    n.SplittingOn()
+    n.ConsistencyOn()
+    n.AutoOrientNormalsOn()
+    n.ComputePointNormalsOn()
+    n.ComputeCellNormalsOff()
+    n.NonManifoldTraversalOff()
+    n.Update()
+    result=n.GetOutput()
+    verts=np.asarray(vtk_to_numpy(result.GetPoints().GetData()),dtype=np.float32)
+    faceRaw=np.asarray(vtk_to_numpy(result.GetPolys().GetData()),dtype=np.int64)
+    if len(faceRaw)%4:raise RuntimeError('Unexpected nontriangle VTK cell data')
+    faceIdx=faceRaw.reshape((-1,4))
+    if not np.all(faceIdx[:,0]==3):raise RuntimeError('Unexpected nontriangle VTK normals output')
+    normals=np.asarray(vtk_to_numpy(result.GetPointData().GetNormals()),dtype=np.float32)
+    if len(normals)!=len(verts) or not np.isfinite(normals).all():
+        raise RuntimeError('Sharp/smooth normal generation failed')
+    baked=trimesh.Trimesh(vertices=verts,faces=faceIdx[:,1:4],
+                         vertex_normals=normals,process=False)
+    return baked
+
 def export_glb(solid,filename):
-    verts,triangles=solid.tessellate(GLTF_MESH_TOLERANCE,.13)
+    verts,triangles=solid.tessellate(1.3,.105)
     verts=np.array([[v.x,v.y,v.z] for v in verts],dtype=np.float32)
     faces=np.array(triangles,dtype=np.int32)
     if not len(verts) or not len(faces):raise RuntimeError('No tessellation faces')
     mesh=trimesh.Trimesh(vertices=verts,faces=faces,process=False)
-    # OCC duplicates tessellation vertices along analytic-face boundaries.
-    # Weld to eliminate phantom cracks / double edges in the GLB.
+    # Watertight check is on the unsplit analytical solid triangulation.
     mesh.merge_vertices(digits_vertex=4)
     if not mesh.is_watertight:
-        raise RuntimeError(f'{filename} exported mesh has open edges; CAD model must be fixed before publication')
-    # CadQuery/OCC tessellation has analytic surface normals; trimesh derives smooth vertex normals.
-    geom=trimesh.Scene(mesh)
-    dest=DEST/(filename+'.glb');dest.write_bytes(geom.export(file_type='glb', include_normals=True))
+        raise RuntimeError(f'{filename} mesh is open; fix CAD B-rep before publishing')
+    if not mesh.is_winding_consistent:
+        mesh.fix_normals(multibody=True)
+    polished=crease_safe_mesh(mesh,angle=36)
+    dest=DEST/(filename+'.glb')
+    dest.write_bytes(trimesh.Scene(polished).export(file_type='glb',include_normals=True))
+    # Round trip verifies both positions and explicit normals survive export.
+    rt=trimesh.load(dest,force='mesh',process=False)
+    if not len(rt.faces) or len(rt.vertex_normals)!=len(rt.vertices) or not np.isfinite(rt.vertex_normals).all():
+        raise RuntimeError(f'{filename}: invalid GLB round trip')
     return mesh,dest
 
 def build_one(name):
@@ -293,13 +366,14 @@ def build_one(name):
     # A multi-solid compound may be valid; only nonzero analytic solids are exported.
     if not obj.isValid():raise RuntimeError(name+' CAD shape is invalid')
     if obj.Volume()<1000:raise RuntimeError(name+' negligible CAD volume')
+    if len(obj.Solids())!=1:raise RuntimeError(f'{name}: {len(obj.Solids())} disconnected solids (expected 1)')
     b=obj.BoundingBox()
     mesh,dest=export_glb(obj,name)
     rec={'part':name,'volume_mm3':round(obj.Volume()),'solids':len(obj.Solids()),'bounds_mm':[
         [round(b.xmin,1),round(b.xmax,1)],[round(b.ymin,1),round(b.ymax,1)],[round(b.zmin,1),round(b.zmax,1)]],
         'triangles':len(mesh.faces),'gltf_bytes':dest.stat().st_size,
-        'cad_valid':obj.isValid(),'watertight_glb':bool(mesh.is_watertight),'seconds':round(time.time()-started,1),
-        'status':'Drawing-scale visually reconstructed; NOT manufacturing CAD'}
+        'cad_valid':obj.isValid(),'watertight_glb':bool(mesh.is_watertight),'sharp_normals_degrees':36,'seconds':round(time.time()-started,1),
+        'status':'Single valid CAD B-rep; hard-edge visualization preview; not drawing-complete'}
     print(json.dumps(rec,ensure_ascii=False),flush=True)
     return rec
 

@@ -1,39 +1,16 @@
-# FORGE STUDIO 2027 — 2.0 Clean CAD（三维几何清理版）
+# FORGE STUDIO 2027 · v2.2 硬边实体模型版
 
-这不是在 v1.6 的几何上继续拼接网格，而是 **从 A–H 原始 PDF 参考尺寸重新生成了八个可编辑布尔 CAD 实体**，再导出轻量 GLB 供 GitHub Pages 在线旋转、投影、显示。
+通过 CAD 实体建模（CadQuery/OpenCascade）生成 A–H 八个参考零件，导出适合 GitHub Pages 的 GLB 网格。支持三维旋转、透视/正交、材质、灯光、图纸对照、STL 预览导出和 DeepSeek API Key 每次手动输入。
 
-## 这次到底改了什么
+**本版针对用户反馈的「像气球」现象：** 修改了三个示例的实体几何（C、E、H）以及全部八件的法线导出。圆柱面按曲面正常平滑，法兰直角、板边、孔边通过 36° 特征角硬边处理，材质默认改为哑光铸件。模型依然是有厚度、有内孔的实心 CAD B-rep 实体，**不是充气的贴图或开放网格**。
 
-- 已清理历史模型中大量互相重叠的面、游离螺栓头、装饰性筋板和假的孔洞；三维核心不再依赖旧 `src/modelFactory.js`。
-- **CAD 形体经 OpenCascade/CadQuery 实体运算和有效性检查，八件各为一个实体。** 导出的 GLB 都完成了顶点焊接，网格均通过 watertight（封闭）检查。
-- 网站使用 `GLTFLoader` 加载 `public/models/A.glb` — `H.glb`；模型失败时明确报错且尽量保留上一件，不再以空白或假的零件冒充成功。
-- 独立的**透视 / 正交**投影、可随时旋转、正视/后视/侧视/俯视/底视/轴测、全屏、材质、阴影、颜色、坐标轴均保留。
-- 删除没有真实装配数据支撑的“爆炸分解”和不存在的“结构标注”功能，避免误导。
-- DeepSeek 仍由用户每次打开网页手动输入 API Key，静态网页使用 GitHub Pages（无需 Vercel），可选自建 Cloudflare Worker。
+### 下载和安装
 
-## 文件结构
+- 在现有仓库更新：请阅读 [`更新教程-v2.2.md`](./更新教程-v2.2.md)，最重要的是一起替换 `public/models` 里的全部八个 GLB。
+- 完整网站包含 `public/drawings` 八份 PDF；附有 `.github/workflows/deploy.yml`。无需 Vercel。
+- STEP 文件在单独的 CAD 工程压缩包中，方便在 FreeCAD 等软件继续校核。
 
-```text
-public/drawings/        # 原始 A-H PDF、PNG、关键视图裁图
-public/models/          # 最终生成的 A-H GLB + validation.json
-cad_models/generate.py  # 可编辑的 CadQuery 参数化建模源码，Python 环境运行
-cad_models/preview.py   # 独立 VTK 渲染 QA 预览工具
-src/Viewer.jsx          # Three.js GLTFLoader 三维渲染与投影
-src/App.jsx             # 原来的网页 UI + DeepSeek 控件
-scripts/check-models.mjs # CI GLB 完整性验证
-.github/workflows/      # 现有 GitHub Pages 自动部署
-previews/               # 真正渲染出来的 CAD 模型预览截图
-```
-
-## 测试情况与工程精度边界
-
-**已完成的实际验证**：8 个 CAD 构型都满足 `Solid.isValid()`，均为**单个有效 CAD 实体**，导出的 8 个 GLB 全部封闭（watertight）；逐一使用 VTK 离屏渲染成 PNG 检查，逐一核对包围尺寸；Node.js 对 GLB 文件头、几何属性和尺寸进行校验；JSX 静态解析；Cloudflare Worker 模拟请求测试。
-
-**尚未完成**：当前工作环境无法访问 npm 仓库，因此未在真实 Chrome 中完成 Vite 网站最终交互验证（GitHub Actions 会下载依赖并进行自动构建）。
-
-**尺寸精度特别说明**：有效、封闭的 CAD 实体 **不代表** 已还原正式图纸全部尺寸！八件铸件中的未注自由曲面、装配台阶、沉孔深度、公差、内部流道和部分筋板是简化表达；不能用于加工、开模、承压安全分析或尺寸验收。完整生产级模型请以经审核的原始 STEP/SolidWorks 文件为准。
-
-## 本地运行
+### 开发
 
 ```bash
 npm install
@@ -41,13 +18,10 @@ npm run check:models
 npm run dev
 ```
 
-部署前：`npm run build`，它会执行纯 Node.js 的 GLB 检验。
+构建 `npm run build`；部署 GitHub Pages 仍采用现有 GitHub Actions 工作流。
 
-重新生成模型（**仅在你要修改 CAD 参数时**）：
+### 工程精度说明
 
-```bash
-pip install cadquery trimesh numpy
-python cad_models/generate.py A B C D E F G H
-```
+CAD 的实体有效性不是完整图纸尺寸准确性的证明。这里保留了原图主要可读尺寸，但未标注的铸造曲面、内部复杂流道、公差等未全部约束。**参考实体不得未经复核直接用于加工、检测、开模或安全计算。**
 
-其他说明、GitHub 更新教程请看 `GitHub更新步骤-v2.0.md`。普通用户**不必**安装 Python 或 CadQuery：八个 `.glb` 已经生成。
+模型源码位于 `cad_models/generate.py`；GLB 渲染预览位于 `previews_hard_edges/`。当前容器无法从 npm 下载依赖，因此实际 Chrome 交互需通过 GitHub Actions 构建后进行最后验证。
