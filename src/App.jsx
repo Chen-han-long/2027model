@@ -44,14 +44,20 @@ export default function App(){
   const [includeImage,setIncludeImage]=useState(true);
   const [busy,setBusy]=useState(false);
   const [toast,setToast]=useState('');
-  const viewerRef=useRef();const fileInput=useRef();const messagesEnd=useRef();const toastTimer=useRef();
+  const viewerRef=useRef();const viewerShellRef=useRef(null);const fileInput=useRef();const messagesEnd=useRef();const toastTimer=useRef();
   const part=partById[partId];const chatKey=imported?`import:${imported.name}`:partId;const messages=messagesByModel[chatKey]||[];
   const setOpt=(name,value)=>setOptions(o=>({...o,[name]:value}));
   function notify(txt){setToast(txt);clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(''),3800)}
   useEffect(()=>()=>clearTimeout(toastTimer.current),[]);
   useEffect(()=>{messagesEnd.current?.scrollIntoView({behavior:'smooth',block:'end'});},[messages.length,tab,busy]);
   useEffect(()=>{const fn=e=>{if(e.key==='Escape'){setShowDrawing(false);setShowMobileNav(false);setShowInspector(false);setExpandedViewer(false)}};window.addEventListener('keydown',fn);return()=>window.removeEventListener('keydown',fn)},[]);
+  // Keep drawers from covering the desktop workspace after a device rotates.
+  useEffect(()=>{const onResize=()=>{if(window.innerWidth>900)setShowMobileNav(false);if(window.innerWidth>1199)setShowInspector(false)};window.addEventListener('resize',onResize);return()=>window.removeEventListener('resize',onResize)},[]);
   const changeView=(name)=>{setFocusHole(null);setActiveView(name);setViewCommand(v=>({name,seq:v.seq+1}));};
+  const openParts=()=>{setShowInspector(false);setShowMobileNav(true)};
+  const openControls=(nextTab='appearance')=>{setShowMobileNav(false);setTab(nextTab);setShowInspector(true)};
+  const closeDrawers=()=>{setShowMobileNav(false);setShowInspector(false)};
+  const returnToViewer=()=>{closeDrawers();viewerShellRef.current?.scrollIntoView({behavior:'smooth',block:'center'})};
   function choosePart(id){setFocusHole(null);setPartId(id);setImported(null);setQuestion('');setOptions(o=>({...o,rotate:false}));changeView('iso');setShowMobileNav(false)}
   async function loadModel(file){
     if(!file)return;
@@ -90,11 +96,11 @@ export default function App(){
   }
   return <div className={`app app-${background}`} onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDragging(false)}} onDrop={handleDrop}>
     <input className="sr-only" ref={fileInput} type="file" accept=".stl,.obj,.glb" onChange={e=>loadModel(e.target.files?.[0])}/>
-    <aside className={`left-sidebar ${showMobileNav?'mobile-open':''}`}>
+    <aside id="parts-drawer" aria-label="零件库" className={`left-sidebar ${showMobileNav?'mobile-open':''}`}>
       <div className="brand">
         <div className="brand-logo"><Box size={22} strokeWidth={1.75}/></div>
         <div><div className="brand-title">FORGE <span>STUDIO</span></div><div className="brand-kicker">ENGINEERING VISUAL LAB</div></div>
-        <button className="mobile-close icon-btn" onClick={()=>setShowMobileNav(false)}><X size={18}/></button>
+        <button type="button" className="mobile-close icon-btn" aria-label="关闭零件库" onClick={()=>setShowMobileNav(false)}><X size={18}/></button>
       </div>
       <div className="sidebar-section-label"><span>项目工作区</span><span>2027 SERIES</span></div>
       <div className="project-card"><div className="project-icon"><Layers size={19}/></div><div><strong>机械零件三维可视化</strong><span>8 张工程图 · 布尔实体预览</span></div><Check size={15} className="project-check"/></div>
@@ -111,11 +117,11 @@ export default function App(){
     </aside>
     <main className="main-workspace">
       <header className="topbar">
-        <div className="topbar-left"><button className="mobile-menu icon-btn" onClick={()=>setShowMobileNav(true)}><Menu size={19}/></button><span>项目</span><ChevronRight size={14}/><strong>2027 机械零件库</strong><ChevronRight size={14}/><span className="crumb-last">{imported?'自定义模型':`${part.id}件 · ${part.name}`}</span></div>
-        <div className="topbar-right"><span className="saved-status"><span/> GitHub Pages 版</span><span className="topbar-divider"/><a href="https://github.com/new" title="在 GitHub 创建仓库" target="_blank" rel="noreferrer"><Github size={17}/></a><button className="icon-btn mobile-settings" onClick={()=>setShowInspector(v=>!v)} title="打开设置"><Settings2 size={18}/></button></div>
+        <div className="topbar-left"><button type="button" className="mobile-menu icon-btn" onClick={openParts} aria-label="打开零件库" aria-controls="parts-drawer" aria-expanded={showMobileNav}><Menu size={19}/></button><span>项目</span><ChevronRight size={14}/><strong>2027 机械零件库</strong><ChevronRight size={14}/><span className="crumb-last">{imported?'自定义模型':`${part.id}件 · ${part.name}`}</span></div>
+        <div className="topbar-right"><span className="saved-status"><span/> GitHub Pages 版</span><span className="topbar-divider"/><a href="https://github.com/new" title="在 GitHub 创建仓库" target="_blank" rel="noreferrer"><Github size={17}/></a><button type="button" className="icon-btn mobile-ai-shortcut" onClick={()=>openControls('ai')} aria-label="打开 AI 助手" aria-controls="controls-drawer" aria-expanded={showInspector&&tab==='ai'}><Sparkles size={18}/></button><button type="button" className="icon-btn mobile-settings" onClick={()=>{setShowMobileNav(false);setShowInspector(v=>!v)}} aria-label="打开或关闭模型设置" aria-controls="controls-drawer" aria-expanded={showInspector}><Settings2 size={18}/></button></div>
       </header>
       <div className="work-title"><div><div className="eyebrow">3D MODEL VIEWPORT <span className="eyebrow-line"/></div><h1>{getModelName(imported,part)} <span className="name-num">{imported?'IMPORT':`/ ${part.id}–2027`}</span></h1><p>{imported?'用户导入的网格文件 · 单位取决于原文件':`${part.english} · ${part.material} · 图纸外形：${part.dimensions}`}</p></div><div className="title-actions"><button className="small-action" onClick={()=>setShowDrawing(true)}><FileText size={15}/> 对照原图</button><button className="small-action primary" onClick={()=>exportModel('png')}><ImageIcon size={15}/> 导出截图</button></div></div>
-      <section className={`viewer-shell ${expandedViewer?'viewer-expanded':''}`}>
+      <section id="model-viewport" ref={viewerShellRef} aria-label="三维模型查看窗口" className={`viewer-shell ${expandedViewer?'viewer-expanded':''}`}>
         <div className="canvas-area"><Viewer ref={viewerRef} id={partId} imported={imported} options={options} viewCommand={viewCommand} focusHole={focusHole} projection={projection} background={background}/></div>
         {compareMode&&!imported&&<div className="drawing-compare" aria-label="原始工程图关键视图对照">
           <div className="drawing-compare-head"><span><FileText size={14}/> 原图关键视图 · {partId} 件</span><button onClick={()=>setCompareMode(false)} title="关闭图纸对照"><X size={15}/></button></div>
@@ -123,14 +129,16 @@ export default function App(){
           <p>图纸尺寸：{part.dimensions}<br/>局部裁图用于形状校核；三维仍非加工级实体。</p>
         </div>}
         <div className="viewport-top-left"><span className="live-pill"><span/> INTERACTIVE 3D</span><span className="quality-pill">{projection==='perspective'?'透视投影':'正交投影'} · MM</span></div>
+        {expandedViewer&&<button type="button" className="viewer-exit-fullscreen" onClick={()=>setExpandedViewer(false)} aria-label="退出三维全屏"><Minimize2 size={17}/> 退出全屏</button>}
         <div className="viewport-top-right"><span className="representation-pill"><CircleHelp size={13}/> {imported?'导入模型 · 原文件单位':`CAD 预览 · mm · ${part.dimensions}`}</span></div>
         <div className="viewport-hint"><Rotate3D size={15}/><span>左键旋转 · 滚轮缩放 · 右键平移 · 点击透视/正交切换</span></div>
         <div className="floating-toolbar"><div className="toolbar-segment"><ViewButton onClick={()=>changeView('iso')} active={activeView==='iso'} title="轴测视角（保留透视投影）"><Box size={17}/></ViewButton><ViewButton onClick={()=>changeView('front')} active={activeView==='front'} title="工程图正视方向">正</ViewButton><ViewButton onClick={()=>changeView('right')} active={activeView==='right'} title="侧视方向">侧</ViewButton><ViewButton onClick={()=>changeView('top')} active={activeView==='top'} title="俯视方向">俯</ViewButton><ViewButton onClick={()=>changeView('back')} active={activeView==='back'} title="背面视角">后</ViewButton><ViewButton onClick={()=>changeView('bottom')} active={activeView==='bottom'} title="仰视方向">底</ViewButton></div><div className="toolbar-divider"/><div className="toolbar-segment"><ViewButton onClick={()=>setProjection('perspective')} active={projection==='perspective'} title="真实透视投影，可随时切换">透视</ViewButton><ViewButton onClick={()=>setProjection('orthographic')} active={projection==='orthographic'} title="正交投影，便于对照工程图">正交</ViewButton></div><div className="toolbar-divider"/><div className="toolbar-segment"><ViewButton onClick={()=>changeView('zoomOut')} title="缩小"><Minus size={16}/></ViewButton><ViewButton onClick={()=>changeView('zoomIn')} title="放大"><Plus size={16}/></ViewButton><ViewButton onClick={()=>setOpt('rotate',!options.rotate)} active={options.rotate} title="自动旋转"><RotateCcw size={16}/></ViewButton></div><div className="toolbar-divider"/><div className="toolbar-segment"><ViewButton onClick={()=>setCompareMode(v=>!v)} active={compareMode} title="显示/隐藏工程图局部对照"><FileText size={16}/></ViewButton><ViewButton onClick={()=>setOpt('wireframe',!options.wireframe)} active={options.wireframe} title="线框模式"><Aperture size={16}/></ViewButton><ViewButton onClick={()=>changeView('fit')} title="按当前方向适配窗口"><Maximize2 size={16}/></ViewButton><ViewButton onClick={()=>setExpandedViewer(v=>!v)} active={expandedViewer} title={expandedViewer?'退出放大':'放大三维窗口'}>{expandedViewer?<Minimize2 size={16}/>:<Maximize2 size={16}/>}</ViewButton></div></div>
       </section>
+      <p className="mobile-touch-hint">单指旋转模型 · 双指缩放／平移 · 左右滑动下方视角工具栏</p>
       <div className="bottom-content"><div className="detail-box"><span className="detail-heading">零件信息 <span>PART OVERVIEW</span></span><div className="meta-line"><div><small>图纸编号</small><strong>2027 - {partId}</strong></div><div><small>标注材料</small><strong>{part.material}</strong></div><div><small>建模类别</small><strong>{imported?'导入模型':part.kind}</strong></div><div><small>图纸尺寸</small><strong>{imported?'原文件单位':part.dimensions}</strong></div></div><p>{imported?'这是你导入的三维网格。实际几何以文件本身为准，网页未对其精度、单位或尺寸进行校验。':part.shape}</p>{!imported&&<p className="dimension-note">{part.note} 屏幕会自动适配窗口大小；这里的 1:1 指模型坐标以毫米计，不代表显示器物理长度。</p>}<div className="feature-tags">{(imported?['自定义网格','自由视角','表面材质']:part.features).map(x=><span key={x}>{x}</span>)}</div></div><div className="mini-preview" onClick={()=>setShowDrawing(true)} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==='Enter')setShowDrawing(true)}}><div className="mini-preview-title"><FileText size={15}/> 原始工程图 <Maximize2 size={14}/></div><img src={drawingUrl(partId,'png')} alt={`${partId}件原始机械图纸预览`}/><div>点击放大查看 <ChevronRight size={14}/></div></div></div>
     </main>
-    <aside className={`right-sidebar ${showInspector?'mobile-open':''}`}>
-      <div className="inspector-head"><div><span className="eyebrow">CONTROL CENTER</span><h2>模型控制台</h2></div><button className="mobile-close icon-btn" onClick={()=>setShowInspector(false)}><X size={18}/></button><Settings2 className="head-icon" size={19}/></div>
+    <aside id="controls-drawer" aria-label="模型设置与 AI 助手" className={`right-sidebar ${showInspector?'mobile-open':''}`}>
+      <div className="inspector-head"><div><span className="eyebrow">CONTROL CENTER</span><h2>模型控制台</h2></div><button type="button" className="mobile-close icon-btn" aria-label="关闭控制台" onClick={()=>setShowInspector(false)}><X size={18}/></button><Settings2 className="head-icon" size={19}/></div>
       <div className="tab-switch"><button className={tab==='appearance'?'active':''} onClick={()=>setTab('appearance')}><SlidersHorizontal size={16}/> 外观调节</button><button className={tab==='ai'?'active':''} onClick={()=>setTab('ai')}><Sparkles size={16}/> AI 助手</button></div>
       {tab==='appearance' ? <div className="inspector-scroll">
         <div className="section-title"><span>材质和表面</span><span>MATERIAL</span></div>
@@ -192,6 +200,14 @@ export default function App(){
       </div>}
       {tab==='appearance'&&<div className="inspector-foot"><Activity size={15}/> WebGL · THREE.JS <span className="foot-dot"/> 交互式预览</div>}
     </aside>
+    {(showMobileNav||showInspector)&&<button type="button" className="mobile-scrim" onClick={closeDrawers} aria-label="关闭侧边面板"/>}
+    <nav className="mobile-bottom-nav" aria-label="手机快捷导航">
+      <button type="button" onClick={openParts} className={showMobileNav?'active':''} aria-label="选择零件"><Layers size={19}/><span>零件库</span></button>
+      <button type="button" onClick={returnToViewer} aria-label="返回三维模型"><Box size={19}/><span>三维模型</span></button>
+      <button type="button" onClick={()=>openControls('appearance')} className={showInspector&&tab==='appearance'?'active':''} aria-label="打开外观设置"><SlidersHorizontal size={19}/><span>外观设置</span></button>
+      <button type="button" onClick={()=>openControls('ai')} className={showInspector&&tab==='ai'?'active':''} aria-label="打开 DeepSeek AI"><Sparkles size={19}/><span>AI 助手</span></button>
+      <button type="button" onClick={()=>{closeDrawers();setShowDrawing(true)}} aria-label="查看原始工程图"><FileText size={19}/><span>工程图</span></button>
+    </nav>
     {dragging&&<div className="drop-overlay"><UploadCloud size={48}/><h2>松开文件，导入三维模型</h2><p>支持 STL / OBJ / GLB，最大 50MB</p></div>}
     {showDrawing&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setShowDrawing(false)}}><div className="drawing-dialog" role="dialog" aria-modal="true" aria-label="二维工程图预览"><div className="dialog-header"><div><FileText size={19}/><strong>原始二维工程图</strong><span>{partId} 件 · {part.name}</span></div><div><a className="pdf-link" href={drawingUrl(partId,'pdf')} target="_blank" rel="noopener noreferrer"><Download size={15}/> 打开原 PDF</a><button className="icon-btn" onClick={()=>setShowDrawing(false)} aria-label="关闭"><X size={20}/></button></div></div><div className="drawing-image"><img src={drawingUrl(partId,'png')} alt={`${partId} 件完整工程图`} /></div><div className="dialog-note">图纸仅供原图对照；三维预览由可编辑的布尔 CAD 重建，但未标注结构仍有近似，不能直接用于加工。</div></div></div>}
     {toast&&<div className="toast"><BadgeCheck size={16}/>{toast}</div>}

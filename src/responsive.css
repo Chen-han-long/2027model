@@ -1,0 +1,250 @@
+/* FORGE STUDIO 2.4.1 | responsive layer
+   Loaded after style.css. Desktop is three columns; tablet uses a sliding
+   inspector; phones get a bottom navigation and readable, scrollable content.
+   All 3D meshes, CAD dimensions, and AI request logic remain unchanged. */
+
+:root { --mobile-bottom-height: calc(66px + env(safe-area-inset-bottom, 0px)); }
+html, body, #root { min-width: 0; width: 100%; }
+body { overflow-x: hidden; }
+.app, .main-workspace, .viewer-shell, .bottom-content,
+.detail-box, .topbar-left, .work-title > div:first-child { min-width: 0; }
+.mobile-bottom-nav, .mobile-scrim, .mobile-ai-shortcut { display: none; }
+.mobile-scrim { border: 0; padding: 0; }
+
+/* No automatic toolbar wrapping: users can scroll it on compact viewports. */
+.floating-toolbar {
+  max-width: calc(100% - 24px);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-x: contain;
+}
+.floating-toolbar::-webkit-scrollbar { display: none; }
+.floating-toolbar .toolbar-segment { flex: 0 0 auto; }
+.floating-toolbar .toolbar-divider { flex: 0 0 1px; }
+.floating-toolbar button { flex: 0 0 auto; }
+.part-item, .part-copy, .part-line, .detail-box, .ai-intro, .chat-compose,
+.inspector-scroll, .right-sidebar, .left-sidebar { min-width: 0; }
+.work-title h1 { overflow-wrap: anywhere; }
+.work-title p { overflow-wrap: anywhere; }
+.chat-bubble { min-width: 0; }
+/* Prevent flex shrink from collapsing a CAD canvas to a few pixels on phones. */
+.main-workspace > .topbar, .main-workspace > .work-title,
+.main-workspace > .viewer-shell, .main-workspace > .bottom-content { flex-shrink: 0; }
+.chat-bubble > div, .hole-note, .hole-spec, .hole-drawing { overflow-wrap: anywhere; }
+.range-block input[type="range"] { touch-action: pan-y; }
+
+/* Compact desktops / tablets in landscape: keep part list, maximize CAD viewer,
+   move the inspector to a non-destructive drawer instead of squeezing 3 columns. */
+@media (max-width: 1199px) {
+  .app {
+    display: grid;
+    grid-template-columns: 216px minmax(0, 1fr);
+    width: 100%; height: 100dvh; min-height: 0;
+  }
+  .left-sidebar { min-height: 0; }
+  .main-workspace { height: 100dvh; min-height: 0; overflow-y: auto; }
+  .right-sidebar {
+    position: fixed; inset: 0 0 0 auto;
+    width: min(390px, 100vw); height: 100dvh; max-height: 100dvh;
+    z-index: 105; box-shadow: -16px 0 55px #020912b0;
+    visibility: hidden; transform: translateX(105%);
+    transition: transform .22s ease, visibility .22s;
+  }
+  .right-sidebar.mobile-open { visibility: visible; transform: translateX(0); }
+  .right-sidebar .head-icon { display: none; }
+  .right-sidebar .mobile-close, .mobile-settings, .mobile-ai-shortcut {
+    display: inline-grid; place-items: center;
+  }
+  .right-sidebar .inspector-head { height: 84px; min-height: 84px; }
+  .mobile-scrim {
+    display: block; position: fixed; inset: 0; z-index: 100;
+    background: #030b15ba; backdrop-filter: blur(3px);
+  }
+  .main-workspace { scrollbar-width: thin; }
+  .topbar-right { flex-shrink: 0; }
+  .topbar .mobile-settings, .topbar .mobile-ai-shortcut { min-width: 38px; min-height: 38px; }
+  .viewer-shell { height: clamp(470px, 67dvh, 900px); min-height: 0; }
+  .bottom-content { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(200px, .75fr); }
+  .mini-preview { display: flex; }
+  .meta-line { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; }
+  .meta-line > div:nth-child(3) { border-left: 0; padding-left: 0; }
+  .inspector-scroll { padding-bottom: max(22px, env(safe-area-inset-bottom, 0px)); }
+  .chat-layout { flex: 1; min-height: 0; overflow: hidden; }
+  .chat-list { min-height: 100px; }
+  .chat-compose { max-height: min(61dvh, 580px); overflow-y: auto; overscroll-behavior: contain; flex-shrink: 0; }
+}
+
+/* Tablets in portrait / small tablets: the two panels become drawers.
+   The complete metadata and original PDF preview remain accessible below 3D. */
+@media (max-width: 900px) {
+  .app { display: block; height: 100dvh; min-height: 0; width: 100%; overflow: hidden; }
+  .main-workspace {
+    height: calc(100dvh - var(--mobile-bottom-height));
+    overflow-x: hidden; overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  }
+  .left-sidebar {
+    position: fixed; inset: 0 auto 0 0; width: min(330px, 91vw);
+    height: 100dvh; max-height: 100dvh; z-index: 105;
+    visibility: hidden; transform: translateX(-105%);
+    transition: transform .22s ease, visibility .22s;
+    box-shadow: 14px 0 50px #020912a8;
+  }
+  .left-sidebar.mobile-open { transform: translateX(0); visibility: visible; }
+  .mobile-menu { display: inline-grid; place-items: center; }
+  .mobile-bottom-nav {
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+    position: fixed; inset: auto 0 0; width: 100%;
+    height: var(--mobile-bottom-height);
+    padding: 4px 5px max(5px, env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid #335363; background: #0d1c28f5;
+    box-shadow: 0 -8px 28px #0004; z-index: 92;
+  }
+  .mobile-bottom-nav button {
+    display: flex; min-width: 0; min-height: 48px;
+    align-items: center; justify-content: center;
+    flex-direction: column; gap: 4px;
+    border: 0; border-radius: 9px; background: transparent;
+    color: #91aeba; font-size: 10px; line-height: 1.15;
+    touch-action: manipulation;
+  }
+  .mobile-bottom-nav button.active, .mobile-bottom-nav button:active {
+    color: #d2f5f5; background: #1d4250;
+  }
+  .mobile-bottom-nav button svg { flex-shrink: 0; }
+  .topbar { height: 54px; min-height: 54px; }
+  .topbar-left { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .topbar-left > * { flex-shrink: 0; }
+  .topbar-left .crumb-last { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .topbar-right .saved-status, .topbar-right .topbar-divider { display: none; }
+  .work-title { padding: 16px 17px 14px; gap: 12px; }
+  .work-title h1 { font-size: clamp(21px, 3.7vw, 28px); }
+  .viewer-shell { height: clamp(410px, 65dvh, 740px); min-height: 0; margin: 0 12px; }
+  .viewport-hint { display: none; }
+  .bottom-content { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(190px, .7fr); gap: 12px; margin: 14px 12px 28px; }
+  .bottom-content .detail-box { padding: 16px; }
+  .mini-preview { display: flex; }
+  .viewer-shell.viewer-expanded { inset: max(4px, env(safe-area-inset-top, 0px)) 4px max(4px, env(safe-area-inset-bottom, 0px)); z-index: 110; }
+  .drawing-compare { width: min(44%, 330px); }
+  .modal-backdrop { z-index: 125; }
+  .toast { z-index: 135; bottom: calc(var(--mobile-bottom-height) + 12px); }
+}
+
+/* Phones: the viewer stays prominent; details are BELOW the viewer rather than
+   disappearing. Control buttons horizontally scroll instead of overlapping. */
+@media (max-width: 600px) {
+  .app { --mobile-bottom-height: calc(66px + env(safe-area-inset-bottom, 0px)); }
+  .right-sidebar { width: 100vw; max-width: 100vw; }
+  .left-sidebar { width: min(345px, 92vw); }
+  .brand { padding: 18px 15px; }
+  .topbar { height: 50px; min-height: 50px; padding: 0 11px; }
+  .topbar-left { gap: 5px; }
+  .topbar-left > span:first-of-type, .topbar-left > strong,
+  .topbar-left > svg:first-of-type { display: none; }
+  .topbar .mobile-menu, .topbar .mobile-settings, .topbar .mobile-ai-shortcut {
+    min-width: 38px; min-height: 38px; display: inline-grid;
+  }
+  .topbar-right { gap: 5px; }
+  .topbar-right > a { display: none; }
+  .work-title { padding: 14px 12px 12px; gap: 11px; flex-direction: column; align-items: stretch; }
+  .work-title h1 { margin-top: 6px; font-size: clamp(20px, 6vw, 26px); }
+  .work-title .name-num { font-size: 11px; }
+  .work-title p { font-size: 10px; }
+  .title-actions { display: flex; width: 100%; gap: 8px; }
+  .title-actions .small-action { flex: 1 1 0; min-height: 40px; justify-content: center; }
+  .viewer-shell { height: clamp(365px, 58dvh, 610px); min-height: 0; margin: 0 8px; border-radius: 10px; }
+  .viewport-top-left { left: 9px; top: 9px; }
+  .live-pill, .quality-pill { padding: 6px 7px; font-size: 8px; }
+  .viewport-top-right { display: none; }
+  .floating-toolbar {
+    left: 9px; right: 9px; bottom: 9px; transform: none;
+    width: auto; max-width: none;
+    padding: 4px; gap: 4px;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    scroll-snap-type: x proximity;
+    border-radius: 9px;
+  }
+  .floating-toolbar .view-button {
+    height: 39px; min-width: 39px; padding: 0 9px;
+    font-size: 11px; scroll-snap-align: start;
+    touch-action: manipulation;
+  }
+  .floating-toolbar .toolbar-segment { gap: 2px; }
+  .floating-toolbar .toolbar-divider { height: 24px; margin: 0 4px; }
+  .live-axis-gizmo { width: 69px; height: 69px; bottom: 64px; left: 7px; }
+  .drawing-compare { width: min(77%, 305px); top: 43px; right: 7px; max-height: 49%; }
+  .drawing-compare p { display: none; }
+  .bottom-content { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 13px 8px 22px; }
+  .bottom-content .detail-box { padding: 14px; }
+  .meta-line { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); row-gap: 13px; }
+  .meta-line > div:nth-child(3) { border-left: 0; padding-left: 0; }
+  .meta-line strong { white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+  .detail-box > p, .dimension-note { display: block !important; font-size: 10px !important; }
+  .mini-preview { display: flex; }
+  .mini-preview > img { height: 124px; object-fit: contain; }
+  .inspector-head { height: 73px; min-height: 73px; padding: 13px 18px; }
+  .right-sidebar .tab-switch { margin-bottom: 8px; }
+  .right-sidebar .inspector-scroll { padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)); }
+  .right-sidebar .chat-layout { min-height: 0; height: 100%; }
+  .right-sidebar .chat-compose { max-height: 58dvh; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .right-sidebar .chat-list { min-height: 90px; }
+  .right-sidebar .chat-compose textarea { min-height: 48px; }
+  .modal-backdrop { padding: 6px; }
+  .drawing-dialog { width: 100%; height: calc(100dvh - 12px); }
+  .dialog-header { height: 52px; min-height: 52px; padding: 0 10px; }
+  .dialog-header strong { font-size: 12px; }
+  .dialog-header span { display: none; }
+  .drawing-image { justify-content: flex-start; padding: 7px; }
+  .drawing-image img { width: max(100%, 820px); }
+  .dialog-note { padding: 9px; font-size: 9px; }
+  .toast { max-width: calc(100vw - 24px); font-size: 11px; }
+}
+
+/* Very narrow Android widths / landscape phones: no page-level horizontal scroll. */
+@media (max-width: 359px) {
+  .work-title h1 { font-size: 20px; }
+  .topbar-left .crumb-last { font-size: 10px; }
+  .mobile-bottom-nav button { font-size: 9px; }
+  .mobile-bottom-nav button svg { width: 17px; height: 17px; }
+  .floating-toolbar .view-button { min-width: 36px; height: 38px; }
+}
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 540px) {
+  .viewer-shell { height: clamp(310px, 80dvh, 480px); min-height: 0; }
+  .work-title { padding-top: 9px; padding-bottom: 9px; }
+  .work-title h1 { margin: 3px 0; }
+  .mobile-bottom-nav { height: calc(52px + env(safe-area-inset-bottom, 0px)); }
+  .app { --mobile-bottom-height: calc(52px + env(safe-area-inset-bottom, 0px)); }
+  .mobile-bottom-nav button { min-height: 38px; flex-direction: row; gap: 5px; }
+  .inspector-head { height: 62px; min-height: 62px; }
+  .right-sidebar .chat-compose { max-height: 65dvh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .right-sidebar, .left-sidebar, .mobile-scrim { transition: none !important; }
+  .mobile-bottom-nav button { scroll-behavior: auto; }
+}
+
+/* Persistent exit in immersive mode (the toolbar can be horizontally scrolled). */
+.viewer-exit-fullscreen {
+  position: absolute; z-index: 15; top: 12px; right: 12px;
+  display: flex; align-items: center; gap: 7px;
+  border: 1px solid #6b9da8; border-radius: 8px;
+  background: #183644ed; color: #d6f4f5; font-size: 11px;
+  min-height: 40px; padding: 0 12px;
+}
+.mobile-touch-hint { display: none; }
+@media (max-width: 900px) {
+  .mobile-touch-hint { display: block; flex: 0 0 auto; margin: 9px 13px 0;
+    color: #809fad; font-size: 10px; line-height: 1.6; }
+}
+@media (max-width: 600px) {
+  .viewer-exit-fullscreen { top: 49px; right: 8px; min-height: 38px; }
+  .mobile-touch-hint { margin: 8px 12px 0; font-size: 10px; }
+}

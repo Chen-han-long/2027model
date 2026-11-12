@@ -156,7 +156,9 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,focusHo
     let raf=0,resize,renderer;
     try{
       renderer=new THREE.WebGLRenderer({alpha:true,antialias:true,preserveDrawingBuffer:true,powerPreference:'high-performance'});
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));renderer.setClearColor(0x000000,0);
+      // Limit GPU framebuffer size on phones/tablets without changing model accuracy.
+      const mobileGPU=window.matchMedia('(max-width: 900px)').matches;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,mobileGPU?1.5:2));renderer.setClearColor(0x000000,0);
       renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.18;
       renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
       renderer.domElement.style.cssText='width:100%;height:100%;display:block;touch-action:none;';
@@ -167,7 +169,7 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,focusHo
       controls.minPolarAngle=.005;controls.maxPolarAngle=Math.PI-.005;controls.enablePan=true;
       scene.add(new THREE.AmbientLight('#dcecf7',.9));scene.add(new THREE.HemisphereLight('#e8f4ff','#334a55',1.15));
       const key=new THREE.DirectionalLight('#fff7e9',2.25);key.position.set(500,900,900);key.castShadow=true;
-      key.shadow.mapSize.set(2048,2048);key.shadow.bias=-.00015;scene.add(key,key.target);
+      key.shadow.mapSize.set(mobileGPU?1024:2048,mobileGPU?1024:2048);key.shadow.bias=-.00015;scene.add(key,key.target);
       const fill=new THREE.DirectionalLight('#8ac7f2',.9);fill.position.set(-600,400,-500);scene.add(fill);
       // Soft camera-following light keeps CAD details readable when viewing back faces.
       const headlight=new THREE.DirectionalLight('#ffffff',.4);
