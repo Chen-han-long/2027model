@@ -8,7 +8,7 @@ import Viewer from './Viewer';
 import { parts,partById,palettes,quickQuestions } from './data';
 import { askDeepSeek, DEFAULT_GATEWAY_URL } from './ai';
 
-const initialOptions={color:'#8eabc0',metalness:.68,roughness:.32,light:2.8,opacity:1,shadows:true,grid:true,axes:false,wireframe:false,rotate:false,labels:false,explode:0};
+const initialOptions={color:'#8eabc0',metalness:.68,roughness:.32,light:2.8,opacity:1,shadows:true,grid:true,axes:false,wireframe:false,rotate:false};
 const backgrounds={midnight:'深空',slate:'石墨',light:'浅色'};
 const getModelName=(imported,part)=>imported?imported.name:part.name;
 const drawingUrl=(id,ext)=>`${import.meta.env.BASE_URL}drawings/${id}.${ext}`;
@@ -70,7 +70,7 @@ export default function App(){
     if(fileInput.current)fileInput.current.value='';
   }
   function handleDrop(e){e.preventDefault();setDragging(false);loadModel(e.dataTransfer.files?.[0])}
-  function exportModel(type){try{if(type==='stl'){viewerRef.current.exportSTL();notify('已导出 STL 示意网格，请勿用于直接加工。')}else{viewerRef.current.screenshot();notify('已导出当前视角 PNG 图片。')}}catch(e){notify(e.message||'操作失败')}}
+  function exportModel(type){try{if(type==='stl'){viewerRef.current.exportSTL();notify('已导出三维预览 STL；未完成图纸尺寸与公差校验，不可直接加工。')}else{viewerRef.current.screenshot();notify('已导出当前视角 PNG 图片。')}}catch(e){notify(e.message||'操作失败')}}
   async function askAI(txt=question){
     const q=txt.trim();if(!q||busy)return;
     if(!apiKey.trim()){notify('请先在 AI 面板输入 DeepSeek API Key。');return;}
@@ -94,7 +94,7 @@ export default function App(){
         <button className="mobile-close icon-btn" onClick={()=>setShowMobileNav(false)}><X size={18}/></button>
       </div>
       <div className="sidebar-section-label"><span>项目工作区</span><span>2027 SERIES</span></div>
-      <div className="project-card"><div className="project-icon"><Layers size={19}/></div><div><strong>机械零件三维可视化</strong><span>8 张工程图 · 示意重建</span></div><Check size={15} className="project-check"/></div>
+      <div className="project-card"><div className="project-icon"><Layers size={19}/></div><div><strong>机械零件三维可视化</strong><span>8 张工程图 · 布尔实体预览</span></div><Check size={15} className="project-check"/></div>
       <div className="parts-title"><span>零件库 <b>08</b></span><span className="parts-sub">PARTS</span></div>
       <div className="part-list">
         {parts.map(p=><button key={p.id} className={`part-item ${p.id===partId&&!imported?'active':''}`} onClick={()=>choosePart(p.id)}>
@@ -104,7 +104,7 @@ export default function App(){
         </button>)}
         {imported&&<div className="imported-item"><UploadCloud size={17}/><span title={imported.name}>{imported.name}</span><button onClick={()=>setImported(null)} aria-label="关闭导入模型"><X size={14}/></button></div>}
       </div>
-      <div className="sidebar-bottom"><div className="sidebar-tip"><ShieldCheck size={16}/><span>模型按可读尺寸约束重建；按工具栏图纸图标可对照原图。</span></div><button className="import-button" onClick={()=>fileInput.current?.click()}><UploadCloud size={17}/> 导入 3D 模型 <span>STL / OBJ / GLB</span></button></div>
+      <div className="sidebar-bottom"><div className="sidebar-tip"><ShieldCheck size={16}/><span>已改用经实体检查的简化 CAD 网格；部分未标注细节仍需校核。</span></div><button className="import-button" onClick={()=>fileInput.current?.click()}><UploadCloud size={17}/> 导入 3D 模型 <span>STL / OBJ / GLB</span></button></div>
     </aside>
     <main className="main-workspace">
       <header className="topbar">
@@ -120,7 +120,7 @@ export default function App(){
           <p>图纸尺寸：{part.dimensions}<br/>局部裁图用于形状校核；三维仍非加工级实体。</p>
         </div>}
         <div className="viewport-top-left"><span className="live-pill"><span/> INTERACTIVE 3D</span><span className="quality-pill">{projection==='perspective'?'透视投影':'正交投影'} · MM</span></div>
-        <div className="viewport-top-right"><span className="representation-pill"><CircleHelp size={13}/> {imported?'导入模型 · 原文件单位':`模型单位 mm · ${part.dimensions}`}</span></div>
+        <div className="viewport-top-right"><span className="representation-pill"><CircleHelp size={13}/> {imported?'导入模型 · 原文件单位':`CAD 预览 · mm · ${part.dimensions}`}</span></div>
         <div className="viewport-hint"><Rotate3D size={15}/><span>左键旋转 · 滚轮缩放 · 右键平移 · 点击透视/正交切换</span></div>
         <div className="floating-toolbar"><div className="toolbar-segment"><ViewButton onClick={()=>changeView('iso')} active={activeView==='iso'} title="轴测视角（保留透视投影）"><Box size={17}/></ViewButton><ViewButton onClick={()=>changeView('front')} active={activeView==='front'} title="工程图正视方向">正</ViewButton><ViewButton onClick={()=>changeView('right')} active={activeView==='right'} title="侧视方向">侧</ViewButton><ViewButton onClick={()=>changeView('top')} active={activeView==='top'} title="俯视方向">俯</ViewButton><ViewButton onClick={()=>changeView('back')} active={activeView==='back'} title="背面视角">后</ViewButton><ViewButton onClick={()=>changeView('bottom')} active={activeView==='bottom'} title="仰视方向">底</ViewButton></div><div className="toolbar-divider"/><div className="toolbar-segment"><ViewButton onClick={()=>setProjection('perspective')} active={projection==='perspective'} title="真实透视投影，可随时切换">透视</ViewButton><ViewButton onClick={()=>setProjection('orthographic')} active={projection==='orthographic'} title="正交投影，便于对照工程图">正交</ViewButton></div><div className="toolbar-divider"/><div className="toolbar-segment"><ViewButton onClick={()=>changeView('zoomOut')} title="缩小"><Minus size={16}/></ViewButton><ViewButton onClick={()=>changeView('zoomIn')} title="放大"><Plus size={16}/></ViewButton><ViewButton onClick={()=>setOpt('rotate',!options.rotate)} active={options.rotate} title="自动旋转"><RotateCcw size={16}/></ViewButton></div><div className="toolbar-divider"/><div className="toolbar-segment"><ViewButton onClick={()=>setCompareMode(v=>!v)} active={compareMode} title="显示/隐藏工程图局部对照"><FileText size={16}/></ViewButton><ViewButton onClick={()=>setOpt('wireframe',!options.wireframe)} active={options.wireframe} title="线框模式"><Aperture size={16}/></ViewButton><ViewButton onClick={()=>changeView('fit')} title="按当前方向适配窗口"><Maximize2 size={16}/></ViewButton><ViewButton onClick={()=>setExpandedViewer(v=>!v)} active={expandedViewer} title={expandedViewer?'退出放大':'放大三维窗口'}>{expandedViewer?<Minimize2 size={16}/>:<Maximize2 size={16}/>}</ViewButton></div></div>
       </section>
@@ -146,7 +146,7 @@ export default function App(){
         <div className="section-title separated"><span>视图与结构</span><span>DISPLAY</span></div>
         <div className="projection-panel"><span>投影模式</span><div><button className={projection==='perspective'?'active':''} onClick={()=>setProjection('perspective')}>透视图</button><button className={projection==='orthographic'?'active':''} onClick={()=>setProjection('orthographic')}>正交工程视图</button></div><small>切换投影不改变当前观察方向；可随时返回透视图。与原图对照时建议使用正交。</small></div><Switch label="自动旋转" checked={options.rotate} onChange={v=>setOpt('rotate',v)}/>
         <Switch label="线框模式" checked={options.wireframe} onChange={v=>setOpt('wireframe',v)}/>
-        {!imported&&<><Switch label="结构标注" checked={options.labels} onChange={v=>setOpt('labels',v)}/><Range label="示意分解" value={options.explode} onChange={v=>setOpt('explode',v)} min={0} max={1}/></>}
+        {!imported&&<p className="cad-solid-note">当前展示的是经过 CAD 实体布尔运算的单件预览，不存在可分解的装配子件，因此已移除容易产生误导的“分解”按钮。</p>}
         <button className="reset-button" onClick={()=>{setOptions(initialOptions);setBackground('midnight');changeView('iso')}}><RotateCcw size={15}/> 恢复默认设置</button>
         <button className="download-stl" onClick={()=>exportModel('stl')}><FileDown size={16}/><span>导出示意网格 STL <small>仅供可视化参考，不能直接加工</small></span><ArrowDownToLine size={16}/></button>
       </div> : <div className="chat-layout">
@@ -174,7 +174,7 @@ export default function App(){
       {tab==='appearance'&&<div className="inspector-foot"><Activity size={15}/> WebGL · THREE.JS <span className="foot-dot"/> 交互式预览</div>}
     </aside>
     {dragging&&<div className="drop-overlay"><UploadCloud size={48}/><h2>松开文件，导入三维模型</h2><p>支持 STL / OBJ / GLB，最大 50MB</p></div>}
-    {showDrawing&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setShowDrawing(false)}}><div className="drawing-dialog" role="dialog" aria-modal="true" aria-label="二维工程图预览"><div className="dialog-header"><div><FileText size={19}/><strong>原始二维工程图</strong><span>{partId} 件 · {part.name}</span></div><div><a className="pdf-link" href={drawingUrl(partId,'pdf')} target="_blank" rel="noopener noreferrer"><Download size={15}/> 打开原 PDF</a><button className="icon-btn" onClick={()=>setShowDrawing(false)} aria-label="关闭"><X size={20}/></button></div></div><div className="drawing-image"><img src={drawingUrl(partId,'png')} alt={`${partId} 件完整工程图`} /></div><div className="dialog-note">图纸仅供原图对照；三维预览是独立的近似几何模型，不代表图纸全部尺寸已被提取。</div></div></div>}
+    {showDrawing&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setShowDrawing(false)}}><div className="drawing-dialog" role="dialog" aria-modal="true" aria-label="二维工程图预览"><div className="dialog-header"><div><FileText size={19}/><strong>原始二维工程图</strong><span>{partId} 件 · {part.name}</span></div><div><a className="pdf-link" href={drawingUrl(partId,'pdf')} target="_blank" rel="noopener noreferrer"><Download size={15}/> 打开原 PDF</a><button className="icon-btn" onClick={()=>setShowDrawing(false)} aria-label="关闭"><X size={20}/></button></div></div><div className="drawing-image"><img src={drawingUrl(partId,'png')} alt={`${partId} 件完整工程图`} /></div><div className="dialog-note">图纸仅供原图对照；三维预览由可编辑的布尔 CAD 重建，但未标注结构仍有近似，不能直接用于加工。</div></div></div>}
     {toast&&<div className="toast"><BadgeCheck size={16}/>{toast}</div>}
   </div>;
 }

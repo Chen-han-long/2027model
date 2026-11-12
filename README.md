@@ -1,26 +1,39 @@
-# FORGE STUDIO — 2027 工程图三维可视化（v1.4）
+# FORGE STUDIO 2027 — 2.0 Clean CAD（三维几何清理版）
 
-这是基于八张二维 PDF 工程图制作的 Three.js / React / Vite 交互网站，可在 GitHub Pages 上免费部署（使用公开仓库时需确认图纸允许公开）。
+这不是在 v1.6 的几何上继续拼接网格，而是 **从 A–H 原始 PDF 参考尺寸重新生成了八个可编辑布尔 CAD 实体**，再导出轻量 GLB 供 GitHub Pages 在线旋转、投影、显示。
 
-## 功能
+## 这次到底改了什么
 
-- A—H 八个零件的参数化三维**示意**重建（模型坐标单位 mm）
-- 鼠标旋转、缩放、平移、视角切换、自动旋转、全屏查看
-- 颜色、金属度、粗糙度、透明度、光照、阴影、网格调节
-- 直接对照原始 PDF；三维窗口内可一键显示关键视图裁图
-- 导入 STL/OBJ/GLB、导出预览 STL、保存 PNG 截图
-- DeepSeek AI 问答：每次使用时输入 Key；不写入源码或本地存储；可附带当前三维截图
-- 可选 Cloudflare Worker 转发（浏览器直接访问 DeepSeek 可能遇到 CORS）
+- 已清理历史模型中大量互相重叠的面、游离螺栓头、装饰性筋板和假的孔洞；三维核心不再依赖旧 `src/modelFactory.js`。
+- **CAD 形体经 OpenCascade/CadQuery 实体运算和有效性检查，八件各为一个实体。** 导出的 GLB 都完成了顶点焊接，网格均通过 watertight（封闭）检查。
+- 网站使用 `GLTFLoader` 加载 `public/models/A.glb` — `H.glb`；模型失败时明确报错且尽量保留上一件，不再以空白或假的零件冒充成功。
+- 独立的**透视 / 正交**投影、可随时旋转、正视/后视/侧视/俯视/底视/轴测、全屏、材质、阴影、颜色、坐标轴均保留。
+- 删除没有真实装配数据支撑的“爆炸分解”和不存在的“结构标注”功能，避免误导。
+- DeepSeek 仍由用户每次打开网页手动输入 API Key，静态网页使用 GitHub Pages（无需 Vercel），可选自建 Cloudflare Worker。
 
-## 重要：精度说明
+## 文件结构
 
-模型是**可视化重建**，不是 STEP/SolidWorks 的工程实体，不能用于加工、铸造开模、有限元分析、承压安全计算或公差检验。虽然有一些尺寸来自图纸标注，复杂曲面、局部孔位、壁厚和内腔仍是近似。导出的 STL 同样仅供预览。
+```text
+public/drawings/        # 原始 A-H PDF、PNG、关键视图裁图
+public/models/          # 最终生成的 A-H GLB + validation.json
+cad_models/generate.py  # 可编辑的 CadQuery 参数化建模源码，Python 环境运行
+cad_models/preview.py   # 独立 VTK 渲染 QA 预览工具
+src/Viewer.jsx          # Three.js GLTFLoader 三维渲染与投影
+src/App.jsx             # 原来的网页 UI + DeepSeek 控件
+scripts/check-models.mjs # CI GLB 完整性验证
+.github/workflows/      # 现有 GitHub Pages 自动部署
+previews/               # 真正渲染出来的 CAD 模型预览截图
+```
 
-特别注意：E 件**总长 2040 mm**；1160 mm 是剖面局部尺寸，旧版标注错误已在 v1.4 更正。具体逐件复核内容见 `本次图纸复核.md`。
+## 测试情况与工程精度边界
+
+**已完成的实际验证**：8 个 CAD 构型都满足 `Solid.isValid()`，均为**单个有效 CAD 实体**，导出的 8 个 GLB 全部封闭（watertight）；逐一使用 VTK 离屏渲染成 PNG 检查，逐一核对包围尺寸；Node.js 对 GLB 文件头、几何属性和尺寸进行校验；JSX 静态解析；Cloudflare Worker 模拟请求测试。
+
+**尚未完成**：当前工作环境无法访问 npm 仓库，因此未在真实 Chrome 中完成 Vite 网站最终交互验证（GitHub Actions 会下载依赖并进行自动构建）。
+
+**尺寸精度特别说明**：有效、封闭的 CAD 实体 **不代表** 已还原正式图纸全部尺寸！八件铸件中的未注自由曲面、装配台阶、沉孔深度、公差、内部流道和部分筋板是简化表达；不能用于加工、开模、承压安全分析或尺寸验收。完整生产级模型请以经审核的原始 STEP/SolidWorks 文件为准。
 
 ## 本地运行
-
-需要 Node.js 20.19+ 或 22+。
 
 ```bash
 npm install
@@ -28,29 +41,13 @@ npm run check:models
 npm run dev
 ```
 
-正式构建：
+部署前：`npm run build`，它会执行纯 Node.js 的 GLB 检验。
+
+重新生成模型（**仅在你要修改 CAD 参数时**）：
 
 ```bash
-npm run build
+pip install cadquery trimesh numpy
+python cad_models/generate.py A B C D E F G H
 ```
 
-部署到 GitHub Pages：仓库 Settings → Pages → Source 选择 **GitHub Actions**。项目自带 `.github/workflows/deploy.yml`，提交到 `main` 即会部署。**无需 Vercel**。
-
-## DeepSeek 接口
-
-每次打开网站，在右侧 AI 助手输入 DeepSeek API Key。Key 仅存在页面内存中，刷新后清空。浏览器直接请求可能遇到 CORS；`worker/deepseek-proxy.js` 是可选转发代码，Worker 不持久保存 Key。Worker 地址可以保存（它不是密钥）。
-
-## 项目结构
-
-- `src/modelFactory.js`：八个三维模型生成器
-- `src/Viewer.jsx`：Three.js 渲染、相机、XYZ 轴、STL 导出
-- `src/App.jsx`：界面、图纸对照、AI 控件
-- `src/data.js`：图纸可读尺寸、结构说明、误差提醒
-- `public/drawings/`：原始 PDF、预览图与关键视图裁图
-- `worker/`：可选的 BYOK AI 转发接口
-- `.github/workflows/deploy.yml`：GitHub Pages 自动部署
-- `本次图纸复核.md`：与 PDF 逐件对照的更改及未完成项目
-
-## 测试状态
-
-已完成语法检查、JSX 解析、隔离模型构造模拟测试和 Worker 模拟测试；因当前环境不能下载 npm 依赖，未完成真实 Three.js 渲染验证。请在 GitHub Actions 构建后再进行浏览器检查。
+其他说明、GitHub 更新教程请看 `GitHub更新步骤-v2.0.md`。普通用户**不必**安装 Python 或 CadQuery：八个 `.glb` 已经生成。

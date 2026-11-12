@@ -1,0 +1,202 @@
+[
+  {
+    "part": "A",
+    "volume_mm3": 93873788,
+    "solids": 1,
+    "bounds_mm": [
+      [
+        -820.0,
+        820.0
+      ],
+      [
+        -84.5,
+        104.0
+      ],
+      [
+        -820.0,
+        820.0
+      ]
+    ],
+    "triangles": 13416,
+    "gltf_bytes": 241084,
+    "cad_valid": true,
+    "watertight_glb": true,
+    "seconds": 1.7,
+    "status": "Drawing-scale visually reconstructed; NOT manufacturing CAD"
+  },
+  {
+    "part": "B",
+    "volume_mm3": 16632005,
+    "solids": 1,
+    "bounds_mm": [
+      [
+        -187.5,
+        189.0
+      ],
+      [
+        0.0,
+        419.0
+      ],
+      [
+        -215.0,
+        215.0
+      ]
+    ],
+    "triangles": 9944,
+    "gltf_bytes": 179596,
+    "cad_valid": true,
+    "watertight_glb": true,
+    "seconds": 0.5,
+    "status": "Drawing-scale visually reconstructed; NOT manufacturing CAD"
+  },
+  {
+    "part": "C",
+    "volume_mm3": 13215216,
+    "solids": 1,
+    "bounds_mm": [
+      [
+        -14.0,
+        619.0
+      ],
+      [
+        -157.5,
+        616.0
+      ],
+      [
+        -157.5,
+        157.5
+      ]
+    ],
+    "triangles": 25718,
+    "gltf_bytes": 463184,
+    "cad_valid": true,
+    "watertight_glb": true,
+    "seconds": 4.6,
+    "status": "Drawing-scale visually reconstructed; NOT manufacturing CAD"
+  },
+  {
+    "part": "D",
+    "volume_mm3": 183167653,
+    "solids": 1,
+    "bounds_mm": [
+      [
+        -1050.0,
+        1050.0
+      ],
+      [
+        20.0,
+        775.0
+      ],
+      [
+        -350.0,
+        350.0
+      ]
+    ],
+    "triangles": 1860,
+    "gltf_bytes": 34180,
+    "cad_valid": true,
+    "watertight_glb": true,
+    "seconds": 0.2,
+    "status": "Drawing-scale visually reconstructed; NOT manufacturing CAD"
+  },
+  {
+    "part": "E",
+    "volume_mm3": 75983885,
+    "solids": 1,
+    "bounds_mm": [
+      [
+        -1020.0,
+        1020.0
+      ],
+      [
+        -8.0,
+        527.5
+      ],
+      [
+        -472.0,
+        472.0
+      ]
+    ],
+    "triangles": 13068,
+    "gltf_bytes": 235340,
+    "cad_valid": true,
+    "watertight_glb": true,
+    "seconds": 1.4,
+    "status": "Drawing-scale visually reconstructed; NOT manufacturing CAD"
+  },
+  {
+    "part": "F",
+    "volume_mm3": 922634,
+    "solids": 1,
+    "bounds_mm": [
+      [
+        -220.0,
+        220.0
+      ],
+      [
+        0.0,
+        139.0
+      ],
+      [
+        -52.5,
+        52.5
+      ]
+    ],
+    "triangles": 3284,
+    "gltf_bytes": 59760,
+    "cad_valid": true,
+    "watertight_glb": true,
+    "seconds": 0.3,
+    "status": "Drawing-scale visually reconstructed; NOT manufacturing CAD"
+  },
+  {
+    "part": "G",
+    "volume_mm3": 115002555,
+    "solids": 1,
+    "bounds_mm": [
+      [
+        -300.0,
+        300.0
+      ],
+      [
+        0.0,
+        940.0
+      ],
+      [
+        -472.0,
+        479.5
+      ]
+    ],
+    "triangles": 15600,
+    "gltf_bytes": 281392,
+    "cad_valid": true,
+    "watertight_glb": true,
+    "seconds": 0.9,
+    "status": "Drawing-scale visually reconstructed; NOT manufacturing CAD"
+  },
+  {
+    "part": "H",
+    "volume_mm3": 75673709,
+    "solids": 1,
+    "bounds_mm": [
+      [
+        -270.0,
+        283.0
+      ],
+      [
+        2.0,
+        892.5
+      ],
+      [
+        -340.0,
+        354.0
+      ]
+    ],
+    "triangles": 18882,
+    "gltf_bytes": 340260,
+    "cad_valid": true,
+    "watertight_glb": true,
+    "seconds": 1.9,
+    "status": "Drawing-scale visually reconstructed; NOT manufacturing CAD"
+  }
+]

@@ -106,3 +106,10 @@
   max-width:min(86%,660px);background:#4a3124ef;border:1px solid #aa794c;
   color:#ffe7c6;border-radius:8px;padding:9px 12px;font-size:11px;line-height:1.55;
   box-shadow:0 8px 26px #0915207c;pointer-events:none;text-align:center}
+/* 2.0 -- the viewport displays pre-generated validated boolean CAD, not many
+   overlapping decorative meshes. Keep load/error messaging compact. */
+.model-load-indicator{position:absolute;top:54px;left:50%;transform:translateX(-50%);z-index:12;
+  background:#18303de8;color:#e4f5f8;border:1px solid #5d9fac;border-radius:8px;
+  padding:11px 18px;font-size:12px;pointer-events:none}
+.cad-solid-note{padding:11px;border:1px solid #385666;background:#152c38;
+  font-size:11px;line-height:1.75;color:#b6d0dc;border-radius:9px}
