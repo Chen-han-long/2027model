@@ -29,3 +29,44 @@
 .webgl-error strong{font-size:18px;color:#ffcdcd}
 .webgl-error span{max-width:450px}
 @media(max-width:580px){.live-axis-gizmo{width:72px;height:72px;bottom:8px;left:7px}.webgl-error{inset:12px;font-size:11px}}
+
+/* Drawing-scale update: larger viewport and 1:1 millimetre model coordinates. */
+.app{grid-template-columns:260px minmax(0,1fr) 310px}
+.topbar{height:58px;min-height:58px}
+.work-title{padding:17px 20px 13px}
+.work-title p{line-height:1.65;max-width:100%;font-size:11px}
+.viewer-shell{height:min(74vh,900px);min-height:560px;margin:0 18px}
+.representation-pill{max-width:min(58vw,600px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px}
+.bottom-content{margin:18px 18px 26px;grid-template-columns:minmax(0,1.5fr) minmax(150px,.72fr)}
+.meta-line{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+.meta-line>div{min-width:0}
+.meta-line>div:last-child strong{font-size:10px;line-height:1.5;white-space:normal}
+.viewer-shell.viewer-expanded{position:fixed;inset:10px;z-index:80;width:auto;height:auto;min-height:0;margin:0;border-radius:14px;box-shadow:0 25px 100px #000e}
+.viewer-shell.viewer-expanded .canvas-area{position:absolute;inset:0}
+.viewer-shell.viewer-expanded .floating-toolbar{bottom:24px}
+.viewer-shell.viewer-expanded .live-axis-gizmo{width:112px;height:112px}
+@media(max-width:1450px){
+  .app{grid-template-columns:242px minmax(0,1fr) 294px}
+  .viewer-shell{height:min(72vh,850px);min-height:520px;margin:0 14px}
+  .work-title{padding:16px 17px 12px}
+  .bottom-content{margin:16px 14px 22px}
+}
+@media(max-width:1120px){
+  .viewer-shell{height:70vh;min-height:500px}
+  .bottom-content{grid-template-columns:1fr}
+  .mini-preview{display:none}
+}
+@media(max-width:890px){
+  .viewer-shell{height:calc(100dvh - 205px);min-height:460px;margin:0 10px}
+  .work-title{padding:14px 14px 12px}
+  .bottom-content{display:none}
+}
+@media(max-width:580px){
+  .viewer-shell{height:calc(100dvh - 215px);min-height:400px;margin:0 8px}
+  .representation-pill{max-width:70vw}
+  .meta-line{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .meta-line>div:nth-child(3){border:0;padding-left:0}
+  .viewer-shell.viewer-expanded{inset:5px}
+}
+.dimension-note{margin-top:-5px!important;color:#6f8998!important;font-size:10px!important;line-height:1.7!important}
+@media(max-width:580px){.dimension-note{display:none}}
