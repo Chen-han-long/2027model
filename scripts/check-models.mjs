@@ -6,6 +6,20 @@ import assert from 'node:assert/strict';
 const base=resolve('public/models');
 const manifest=JSON.parse(readFileSync(join(base,'validation.json'),'utf8'));
 const expected='ABCDEFGH'.split('');
+// The hole catalog also ships with the site. It explicitly distinguishes
+// drawing readouts from approximate feature placements.
+const holeCatalog=JSON.parse(readFileSync(resolve('src/holeCatalog.json'),'utf8'));
+assert.deepEqual(Object.keys(holeCatalog).sort(),expected);
+for(const id of expected){
+  for(const h of holeCatalog[id]){
+    assert(typeof h.name==='string'&&typeof h.model==='string',id+' bad hole catalog label');
+    assert(['drawing','inferred'].includes(h.confidence),id+' missing confidence');
+    assert(Array.isArray(h.center)&&h.center.length===3&&h.center.every(Number.isFinite),id+' invalid hole target');
+    assert(Array.isArray(h.normal)&&h.normal.length===3&&h.normal.every(Number.isFinite),id+' invalid hole normal');
+    assert(h.radius>0&&h.count>=1,id+' invalid hole dimensions');
+  }
+}
+
 assert.deepEqual(manifest.map(x=>x.part).sort(),expected);
 for(const name of expected){
   const file=join(base,`${name}.glb`);
@@ -51,7 +65,7 @@ for(const name of expected){
   assert.equal(m.cad_valid,true,`${name} 原始 CAD 未通过校验`);
   assert.equal(m.watertight_glb,true,`${name} 仍然存在非水密网格`);
   assert.equal(m.solids,1,`${name} 存在游离 CAD 实体`);
-  assert.equal(m.sharp_normals_degrees,36,`${name} 并非硬边法线版本，请上传 2.2 模型`);
+  assert.equal(m.sharp_normals_degrees,36,`${name} 并非硬边法线版本，请上传 2.3 模型`);
   assert(m.triangles>200,`${name} 三角形数量异常`);
   const ext=m.bounds_mm.map(pair=>pair[1]-pair[0]);
   assert(ext.every(x=>Number.isFinite(x)&&x>40&&x<5000),`${name} 包围尺寸异常: ${ext}`);

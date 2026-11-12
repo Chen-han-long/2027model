@@ -1,0 +1,531 @@
+{
+  "A": [
+    {
+      "name": "外缘螺纹孔组",
+      "drawing": "24-M16（图纸可辨）",
+      "model": "24 × Ø14 螺纹底孔示意",
+      "count": 24,
+      "center": [
+        796,
+        80,
+        0
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "radius": 7,
+      "confidence": "drawing",
+      "note": "M16 仅以底孔近似；未建立螺旋牙形"
+    },
+    {
+      "name": "中心安装孔组",
+      "drawing": "4-M24",
+      "model": "4 × Ø20.6 底孔示意",
+      "count": 4,
+      "center": [
+        290,
+        53,
+        0
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "radius": 10.3,
+      "confidence": "drawing",
+      "note": "螺纹牙形与倒角未复原"
+    },
+    {
+      "name": "周向长圆槽",
+      "drawing": "平面图可见，尺寸不清",
+      "model": "8 × 27×74 mm 近似槽",
+      "count": 8,
+      "center": [
+        686,
+        38,
+        0
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "radius": 18,
+      "confidence": "inferred",
+      "note": "槽长宽和角度按轮廓比例估算，不是标注尺寸"
+    }
+  ],
+  "B": [
+    {
+      "name": "主轴承贯通孔",
+      "drawing": "主孔轮廓",
+      "model": "Ø190 近似",
+      "count": 1,
+      "center": [
+        53,
+        283,
+        195
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 95,
+      "confidence": "inferred",
+      "note": "轴向内台阶仍需完整剖面复核"
+    },
+    {
+      "name": "端面法兰孔组",
+      "drawing": "8-M12（图纸可辨）",
+      "model": "8 × Ø12 通孔示意",
+      "count": 8,
+      "center": [
+        -55,
+        238,
+        199
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 6,
+      "confidence": "drawing",
+      "note": "按法兰轴线分布；实际螺纹/沉孔未建"
+    },
+    {
+      "name": "底座固定孔",
+      "drawing": "底视多孔阵列",
+      "model": "4 × Ø22",
+      "count": 4,
+      "center": [
+        143,
+        13,
+        164
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "radius": 11,
+      "confidence": "inferred",
+      "note": "孔数和位置从底视估算"
+    },
+    {
+      "name": "底座小安装孔",
+      "drawing": "底视多个小孔",
+      "model": "4 × Ø8.4",
+      "count": 4,
+      "center": [
+        133,
+        13,
+        92
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "radius": 4.2,
+      "confidence": "inferred",
+      "note": "尺寸仅为模拟底孔"
+    }
+  ],
+  "C": [
+    {
+      "name": "主端法兰",
+      "drawing": "Ø315，8 孔阵列",
+      "model": "Ø315 / Ø200，8 × Ø18",
+      "count": 8,
+      "center": [
+        0,
+        130,
+        0
+      ],
+      "normal": [
+        1,
+        0,
+        0
+      ],
+      "radius": 9,
+      "confidence": "drawing",
+      "note": "沿用上一版经核验的中空管道实体"
+    }
+  ],
+  "D": [
+    {
+      "name": "主轴承内孔",
+      "drawing": "X-X 剖面主孔",
+      "model": "Ø325 主通孔",
+      "count": 1,
+      "center": [
+        0,
+        330,
+        350
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 162.5,
+      "confidence": "drawing",
+      "note": "两端局部沉孔由剖面推测"
+    },
+    {
+      "name": "主孔端部沉台",
+      "drawing": "X-X 台阶轮廓",
+      "model": "Ø356 × 42 深（近似）",
+      "count": 2,
+      "center": [
+        0,
+        330,
+        350
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 178,
+      "confidence": "inferred",
+      "note": "沉孔直径/深度待标注核对"
+    },
+    {
+      "name": "副轴承孔",
+      "drawing": "圆形副孔",
+      "model": "Ø220 近似",
+      "count": 1,
+      "center": [
+        510,
+        195,
+        155
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 110,
+      "confidence": "inferred",
+      "note": "孔径按可辨视图比例重建"
+    }
+  ],
+  "E": [
+    {
+      "name": "顶部矩形检修口",
+      "drawing": "俯视检修口、剖面开通",
+      "model": "673 × 505 贯通框（近似）",
+      "count": 1,
+      "center": [
+        400,
+        514,
+        0
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "radius": 75,
+      "confidence": "inferred",
+      "note": "整体位置和开口尺寸仍需剖视核验"
+    },
+    {
+      "name": "检修口上沿孔组",
+      "drawing": "检修框周边布孔",
+      "model": "16 × Ø16",
+      "count": 16,
+      "center": [
+        74,
+        514,
+        278
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "radius": 8,
+      "confidence": "inferred",
+      "note": "按俯视比例定位，非完整工程孔位"
+    },
+    {
+      "name": "半圆罩底边连接孔",
+      "drawing": "底边等距布孔",
+      "model": "22 × Ø18",
+      "count": 22,
+      "center": [
+        925,
+        5,
+        431
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "radius": 9,
+      "confidence": "inferred",
+      "note": "间距与孔径由平面图估算"
+    },
+    {
+      "name": "圆形检查座",
+      "drawing": "检修接口",
+      "model": "Ø80 孔 / 周圈 8 × Ø8.8",
+      "count": 8,
+      "center": [
+        -562,
+        435,
+        0
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "radius": 4.4,
+      "confidence": "inferred",
+      "note": "部分孔位来自比例重建"
+    }
+  ],
+  "F": [
+    {
+      "name": "上部耳孔",
+      "drawing": "2 × Ø40",
+      "model": "2 × Ø40 真通孔",
+      "count": 2,
+      "center": [
+        143,
+        108,
+        53
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 20,
+      "confidence": "drawing",
+      "note": "两侧耳孔同规格"
+    },
+    {
+      "name": "弧形支架六处侧孔",
+      "drawing": "主视图三列×两侧孔位",
+      "model": "6 × Ø20 近似",
+      "count": 6,
+      "center": [
+        188,
+        28,
+        15
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 10,
+      "confidence": "inferred",
+      "note": "中心坐标与孔径按主视轮廓推定"
+    }
+  ],
+  "G": [
+    {
+      "name": "主体法兰孔组",
+      "drawing": "主圆口周圈均布孔",
+      "model": "12 × Ø16 近似",
+      "count": 12,
+      "center": [
+        -257,
+        347,
+        458
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 8,
+      "confidence": "inferred",
+      "note": "完整孔径标注在扫描中未可靠辨清"
+    },
+    {
+      "name": "顶部三接口",
+      "drawing": "三处相同接口",
+      "model": "3 × Ø79 真通孔",
+      "count": 3,
+      "center": [
+        0,
+        828,
+        479
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 39.5,
+      "confidence": "drawing",
+      "note": "接口内径按图示可读 Ø79 建模"
+    },
+    {
+      "name": "顶部接口紧固孔",
+      "drawing": "三组小螺孔",
+      "model": "3 × 6 × Ø8.4 底孔示意",
+      "count": 18,
+      "center": [
+        209,
+        828,
+        475
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 4.2,
+      "confidence": "inferred",
+      "note": "螺孔规格与节圆待原图复核"
+    },
+    {
+      "name": "底部维修接口",
+      "drawing": "底部小接口",
+      "model": "Ø60 近似",
+      "count": 1,
+      "center": [
+        0,
+        135,
+        460
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 30,
+      "confidence": "inferred",
+      "note": "位置按侧视比例定位"
+    }
+  ],
+  "H": [
+    {
+      "name": "大端法兰孔系",
+      "drawing": "12-Ø18 EQS",
+      "model": "每端 12 × Ø18 贯通孔",
+      "count": 12,
+      "center": [
+        -243,
+        500,
+        340
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 9,
+      "confidence": "drawing",
+      "note": "按图示节圆近似布局；两端法兰均钻孔"
+    },
+    {
+      "name": "大端 M16 位置",
+      "drawing": "4-M16",
+      "model": "每端 4 × Ø14 底孔示意",
+      "count": 4,
+      "center": [
+        -236,
+        565,
+        340
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 7,
+      "confidence": "drawing",
+      "note": "M16 不渲染牙形"
+    },
+    {
+      "name": "下部三孔连接座",
+      "drawing": "3-Ø71 / 3-Ø110",
+      "model": "3 × Ø71 通孔 + Ø110 座",
+      "count": 3,
+      "center": [
+        0,
+        155,
+        355
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 35.5,
+      "confidence": "drawing",
+      "note": "三孔中心距 130 mm"
+    },
+    {
+      "name": "三孔座周圈螺孔",
+      "drawing": "3×6-ST10×1.5 EQS",
+      "model": "18 × Ø8.5 底孔示意",
+      "count": 18,
+      "center": [
+        177,
+        155,
+        355
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "radius": 4.25,
+      "confidence": "drawing",
+      "note": "按螺纹公称规格简化为底孔，不含牙形"
+    },
+    {
+      "name": "顶部检修螺孔",
+      "drawing": "6-M10 EQS",
+      "model": "6 × Ø8.5 底孔示意",
+      "count": 6,
+      "center": [
+        0,
+        889,
+        -47
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "radius": 4.25,
+      "confidence": "drawing",
+      "note": "部分孔深参照图纸，未做螺纹"
+    },
+    {
+      "name": "下部辅助接口",
+      "drawing": "Ø142 / Ø85",
+      "model": "Ø85 真通孔",
+      "count": 1,
+      "center": [
+        283,
+        185,
+        0
+      ],
+      "normal": [
+        1,
+        0,
+        0
+      ],
+      "radius": 42.5,
+      "confidence": "drawing",
+      "note": "与内腔的相贯过渡仍是近似"
+    }
+  ]
+}

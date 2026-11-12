@@ -1,27 +1,29 @@
-# FORGE STUDIO 2027 · v2.2 硬边实体模型版
+# 2027 FORGE STUDIO — v2.3 孔系与机械细节版
 
-通过 CAD 实体建模（CadQuery/OpenCascade）生成 A–H 八个参考零件，导出适合 GitHub Pages 的 GLB 网格。支持三维旋转、透视/正交、材质、灯光、图纸对照、STL 预览导出和 DeepSeek API Key 每次手动输入。
+保留 v2.2 的 GitHub Pages、透视/正交投影、可旋转查看、颜色材质、阴影及 DeepSeek BYOK（每次手动输入 Key）。重点改进七件的机械孔系与实体通孔，**C 件保留**。
 
-**本版针对用户反馈的「像气球」现象：** 修改了三个示例的实体几何（C、E、H）以及全部八件的法线导出。圆柱面按曲面正常平滑，法兰直角、板边、孔边通过 36° 特征角硬边处理，材质默认改为哑光铸件。模型依然是有厚度、有内孔的实心 CAD B-rep 实体，**不是充气的贴图或开放网格**。
+## 新版内容
 
-### 下载和安装
+- A、B、D、E、F、G、H 七个零件新增/校正了实际布尔开孔、沉台、底座固定孔、检查口等。
+- 以前有些法兰孔被后面的实体主体填住，本版在实体**最终合并后重新钻孔**。
+- 右侧新增「孔径与加工特征」表：列出图纸标注、模型实际采用直径、数量，以及不确定性，并可对真实孔位进行镜头聚焦。
+- 新增可选的「加工棱线」观察模式：只显示真实网格的锐边，而不是额外生成装饰性零件。
+- 预览图、可编辑 STEP（供继续校核）、GLB、CadQuery 参数化源码、原始工程 PDF 都在完整项目里。
 
-- 在现有仓库更新：请阅读 [`更新教程-v2.2.md`](./更新教程-v2.2.md)，最重要的是一起替换 `public/models` 里的全部八个 GLB。
-- 完整网站包含 `public/drawings` 八份 PDF；附有 `.github/workflows/deploy.yml`。无需 Vercel。
-- STEP 文件在单独的 CAD 工程压缩包中，方便在 FreeCAD 等软件继续校核。
-
-### 开发
+## 质量检查
 
 ```bash
-npm install
+python cad_models/generate.py A B C D E F G H
+python cad_models/verify_features.py
 npm run check:models
-npm run dev
+npm run test:api
+npm run build
 ```
 
-构建 `npm run build`；部署 GitHub Pages 仍采用现有 GitHub Actions 工作流。
+其中 Python 生成需要 `cadquery`、`vtk`、`trimesh`、`numpy`。通常只在重建 CAD 时运行；GitHub Pages 的静态构建不需要安装 CadQuery，也不运行 Python。
 
-### 工程精度说明
+## 精度边界
 
-CAD 的实体有效性不是完整图纸尺寸准确性的证明。这里保留了原图主要可读尺寸，但未标注的铸造曲面、内部复杂流道、公差等未全部约束。**参考实体不得未经复核直接用于加工、检测、开模或安全计算。**
+所有模型是有来源、有标注与推定区别的**实体 CAD 可视化模型**，不应误认为全尺寸和公差已完成的加工零件。尤其是多阶内腔、铸造复杂曲面、孔深和螺纹牙形不完整。请阅读 `孔径复核与精度边界-v2.3.md`。
 
-模型源码位于 `cad_models/generate.py`；GLB 渲染预览位于 `previews_hard_edges/`。当前容器无法从 npm 下载依赖，因此实际 Chrome 交互需通过 GitHub Actions 构建后进行最后验证。
+GitHub 更新步骤见 `更新到GitHub-v2.3.md`。

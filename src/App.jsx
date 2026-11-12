@@ -7,8 +7,9 @@ import * as THREE from 'three';
 import Viewer from './Viewer';
 import { parts,partById,palettes,quickQuestions } from './data';
 import { askDeepSeek, DEFAULT_GATEWAY_URL } from './ai';
+import holeCatalog from './holeCatalog.json';
 
-const initialOptions={color:'#8eabc0',metalness:.18,roughness:.67,light:1.8,opacity:1,shadows:true,grid:true,axes:false,wireframe:false,rotate:false};
+const initialOptions={edges:false,color:'#8eabc0',metalness:.18,roughness:.67,light:1.8,opacity:1,shadows:true,grid:true,axes:false,wireframe:false,rotate:false};
 const backgrounds={midnight:'深空',slate:'石墨',light:'浅色'};
 const getModelName=(imported,part)=>imported?imported.name:part.name;
 const drawingUrl=(id,ext)=>`${import.meta.env.BASE_URL}drawings/${id}.${ext}`;
@@ -28,6 +29,8 @@ export default function App(){
   const [showDrawing,setShowDrawing]=useState(false);
   const [expandedViewer,setExpandedViewer]=useState(false);
   const [compareMode,setCompareMode]=useState(false);
+  const [showHoleTable,setShowHoleTable]=useState(true);
+  const [focusHole,setFocusHole]=useState(null);
   const [showMobileNav,setShowMobileNav]=useState(false);
   const [showInspector,setShowInspector]=useState(false);
   const [imported,setImported]=useState(null);
@@ -48,8 +51,8 @@ export default function App(){
   useEffect(()=>()=>clearTimeout(toastTimer.current),[]);
   useEffect(()=>{messagesEnd.current?.scrollIntoView({behavior:'smooth',block:'end'});},[messages.length,tab,busy]);
   useEffect(()=>{const fn=e=>{if(e.key==='Escape'){setShowDrawing(false);setShowMobileNav(false);setShowInspector(false);setExpandedViewer(false)}};window.addEventListener('keydown',fn);return()=>window.removeEventListener('keydown',fn)},[]);
-  const changeView=(name)=>{setActiveView(name);setViewCommand(v=>({name,seq:v.seq+1}));};
-  function choosePart(id){setPartId(id);setImported(null);setQuestion('');setOptions(o=>({...o,rotate:false}));changeView('iso');setShowMobileNav(false)}
+  const changeView=(name)=>{setFocusHole(null);setActiveView(name);setViewCommand(v=>({name,seq:v.seq+1}));};
+  function choosePart(id){setFocusHole(null);setPartId(id);setImported(null);setQuestion('');setOptions(o=>({...o,rotate:false}));changeView('iso');setShowMobileNav(false)}
   async function loadModel(file){
     if(!file)return;
     const ext=file.name.split('.').pop().toLowerCase();
@@ -113,7 +116,7 @@ export default function App(){
       </header>
       <div className="work-title"><div><div className="eyebrow">3D MODEL VIEWPORT <span className="eyebrow-line"/></div><h1>{getModelName(imported,part)} <span className="name-num">{imported?'IMPORT':`/ ${part.id}–2027`}</span></h1><p>{imported?'用户导入的网格文件 · 单位取决于原文件':`${part.english} · ${part.material} · 图纸外形：${part.dimensions}`}</p></div><div className="title-actions"><button className="small-action" onClick={()=>setShowDrawing(true)}><FileText size={15}/> 对照原图</button><button className="small-action primary" onClick={()=>exportModel('png')}><ImageIcon size={15}/> 导出截图</button></div></div>
       <section className={`viewer-shell ${expandedViewer?'viewer-expanded':''}`}>
-        <div className="canvas-area"><Viewer ref={viewerRef} id={partId} imported={imported} options={options} viewCommand={viewCommand} projection={projection} background={background}/></div>
+        <div className="canvas-area"><Viewer ref={viewerRef} id={partId} imported={imported} options={options} viewCommand={viewCommand} focusHole={focusHole} projection={projection} background={background}/></div>
         {compareMode&&!imported&&<div className="drawing-compare" aria-label="原始工程图关键视图对照">
           <div className="drawing-compare-head"><span><FileText size={14}/> 原图关键视图 · {partId} 件</span><button onClick={()=>setCompareMode(false)} title="关闭图纸对照"><X size={15}/></button></div>
           <img src={`${import.meta.env.BASE_URL}drawings/views/${partId}.jpg`} alt={`${partId} 件原始 PDF 局部视图`}/>
@@ -143,9 +146,25 @@ export default function App(){
         <Switch label="实时阴影" checked={options.shadows} onChange={v=>setOpt('shadows',v)}/>
         <Switch label="场景网格" checked={options.grid} onChange={v=>setOpt('grid',v)}/>
         <Switch label="显示坐标轴" checked={options.axes} onChange={v=>setOpt('axes',v)}/>
+        {!imported&&<div className="hole-inspection-section">
+          <button type="button" className="hole-inspection-heading" onClick={()=>setShowHoleTable(v=>!v)} aria-expanded={showHoleTable}>
+            <span><Aperture size={16}/> 孔径与加工特征</span><span>{(holeCatalog[partId]||[]).length} 组 <ChevronDown size={15}/></span>
+          </button>
+          {showHoleTable&&<>
+            <p className="hole-inspection-tip">孔径可见 ≠ 全部达到加工精度。点击“观察”会把镜头定位到模型的真实孔位，不会在零件上添加装饰性标记。</p>
+            <div className="hole-inspection-list">{(holeCatalog[partId]||[]).map((h,i)=><div key={partId+'-'+i} className="hole-inspection-item">
+              <div className="hole-inspection-top"><strong>{h.name}</strong><button type="button" onClick={()=>setFocusHole({...h,seq:Date.now()+i})}>观察</button></div>
+              <div className="hole-spec">{h.model}</div>
+              <div className="hole-drawing">{h.confidence==='drawing'?'原图可辨认：':'按图估计：'}{h.drawing}</div>
+              <div className="hole-note">{h.note}</div>
+            </div>)}</div>
+            {focusHole&&<button className="hole-reset" onClick={()=>{setFocusHole(null);changeView('fit')}}>退出孔位观察 · 适配全件</button>}
+          </>}
+        </div>}
         <div className="section-title separated"><span>视图与结构</span><span>DISPLAY</span></div>
         <div className="projection-panel"><span>投影模式</span><div><button className={projection==='perspective'?'active':''} onClick={()=>setProjection('perspective')}>透视图</button><button className={projection==='orthographic'?'active':''} onClick={()=>setProjection('orthographic')}>正交工程视图</button></div><small>切换投影不改变当前观察方向；可随时返回透视图。与原图对照时建议使用正交。</small></div><Switch label="自动旋转" checked={options.rotate} onChange={v=>setOpt('rotate',v)}/>
         <Switch label="线框模式" checked={options.wireframe} onChange={v=>setOpt('wireframe',v)}/>
+        <Switch label="加工棱线（仅真实几何）" checked={options.edges} onChange={v=>setOpt('edges',v)}/>
         {!imported&&<p className="cad-solid-note">当前展示的是经过 CAD 实体布尔运算的单件预览，不存在可分解的装配子件，因此已移除容易产生误导的“分解”按钮。</p>}
         <button className="reset-button" onClick={()=>{setOptions(initialOptions);setBackground('midnight');changeView('iso')}}><RotateCcw size={15}/> 恢复默认设置</button>
         <button className="download-stl" onClick={()=>exportModel('stl')}><FileDown size={16}/><span>导出示意网格 STL <small>仅供可视化参考，不能直接加工</small></span><ArrowDownToLine size={16}/></button>

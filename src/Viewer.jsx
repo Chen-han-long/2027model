@@ -148,7 +148,7 @@ function applyView(state,name){
   const dir=name==='fit'?state.camera.position.clone().sub(state.controls.target):vector(VIEW_DIRECTIONS[name]||VIEW_DIRECTIONS.iso);
   fitModel(state,dir);
 }
-const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,projection='perspective',background='midnight'},ref){
+const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,focusHole,projection='perspective',background='midnight'},ref){
   const mount=useRef(null),axisCanvas=useRef(null),state=useRef(null),requestId=useRef(0);
   const [error,setError]=useState(''),[loading,setLoading]=useState(true);
   useEffect(()=>{
@@ -209,6 +209,13 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,project
         ensureSurfaceNormals(root, id);
         root.traverse(o=>{if(o.isMesh){o.material=st.material;o.castShadow=true;o.receiveShadow=true;}});
         isUsable(root);root.updateMatrixWorld(true);
+        if(options.edges){root.traverse(o=>{
+          if(!o.isMesh||!o.geometry)return;
+          const geo=new THREE.EdgesGeometry(o.geometry,42);
+          const mat=new THREE.LineBasicMaterial({color:0x253844,transparent:true,opacity:.52,depthTest:true,depthWrite:false});
+          const e=new THREE.LineSegments(geo,mat);e.name='CAD geometric hard edges';
+          e.renderOrder=1;o.add(e);o.userData.engineeringEdges=e;
+        });}
         const old=st.model,oldImported=st.modelIsImported;
         st.scene.add(root);st.model=root;st.modelIsImported=isImported;
         try{fitModel(st,new THREE.Vector3(1,.73,1));}
@@ -218,7 +225,7 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,project
       }catch(e){st.scene.remove(root);if(!isImported)disposeTree(root,st.material);console.error(e);setError('无法显示模型：'+e.message);setLoading(false);}
     };
     if(imported){const copy=imported.object.clone(true);commit(copy,true);return;}
-    const url=`${import.meta.env.BASE_URL}models/${id}.glb?v=2.2`;
+    const url=`${import.meta.env.BASE_URL}models/${id}.glb?v=2.3`;
     new GLTFLoader().load(url,gltf=>commit(gltf.scene,false),undefined,e=>{
       if(req!==requestId.current)return;
       console.error('Unable to load drawing solid',url,e);
@@ -231,6 +238,20 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,project
     st.material.roughness=options.roughness;st.material.opacity=options.opacity;
     st.material.transparent=options.opacity<1;st.material.depthWrite=options.opacity>=1;
     st.material.wireframe=options.wireframe;st.material.needsUpdate=true;
+    // Thresholded outlines are optional: they emphasize actual machined
+    // discontinuities without drawing triangular mesh edges as visual noise.
+    if(st.model){st.model.traverse(o=>{
+      if(!o.isMesh || !o.geometry)return;
+      let edges=o.userData?.engineeringEdges;
+      if(options.edges && !edges){
+        const geo=new THREE.EdgesGeometry(o.geometry,42);
+        const mat=new THREE.LineBasicMaterial({color:0x253844,transparent:true,opacity:.52,depthTest:true,depthWrite:false});
+        edges=new THREE.LineSegments(geo,mat);edges.name='CAD geometric hard edges';
+        edges.renderOrder=1;o.add(edges);o.userData.engineeringEdges=edges;
+      }
+      if(edges)edges.visible=!!options.edges;
+    });}
+
     st.key.intensity=options.light;st.key.castShadow=options.shadows;
     if(st.headlight)st.headlight.intensity=Math.max(.16,options.light*.20);
     st.grid.visible=options.grid;st.ground.visible=options.shadows;st.axes.visible=options.axes;
@@ -238,6 +259,28 @@ const Viewer=forwardRef(function Viewer({id,imported,options,viewCommand,project
   },[options]);
   useEffect(()=>{switchProjection(state.current,projection);},[projection]);
   useEffect(()=>{applyView(state.current,viewCommand.name);},[viewCommand]);
+  useEffect(()=>{
+    const st=state.current;
+    if(!st?.model || !focusHole?.center || !focusHole?.normal)return;
+    // Focus on the actual CAD bore without drawing fake ring geometry.
+    // It changes only the observer: no markers or new meshes enter the part.
+    const target=vector(focusHole.center);
+    const outward=vector(focusHole.normal).normalize();
+    const halfView=Math.max(24, (focusHole.radius||10)*5.2);
+    const perspectiveDistance=halfView/Math.tan(THREE.MathUtils.degToRad(st.perspective.fov)/2);
+    if(st.camera.isOrthographicCamera){
+      st.camera.zoom=clamp(st.orthoHalf/halfView,.12,40);
+      st.camera.updateProjectionMatrix();
+      st.camera.position.copy(target).addScaledVector(outward,Math.max(500,st.fitDistance));
+    }else{
+      st.camera.position.copy(target).addScaledVector(outward,Math.max(90,perspectiveDistance));
+    }
+    st.camera.up.set(0,1,0);
+    if(Math.abs(outward.y)>.96)st.camera.up.set(0,0,-1);
+    st.camera.lookAt(target);
+    st.controls.target.copy(target);
+    st.controls.update();
+  },[focusHole]);
 
   useImperativeHandle(ref,()=>({
     captureForAI(){const st=state.current;if(!st?.model)throw Error('模型尚未加载');st.renderer.render(st.scene,st.camera);
