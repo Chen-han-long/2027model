@@ -70,3 +70,20 @@
 }
 .dimension-note{margin-top:-5px!important;color:#6f8998!important;font-size:10px!important;line-height:1.7!important}
 @media(max-width:580px){.dimension-note{display:none}}
+
+/* v1.4: dimension-driven models fill the view, while the original PDF stays below. */
+.viewer-shell{height:min(82vh,1020px);min-height:600px}
+@media(max-width:1450px){.viewer-shell{height:min(79vh,940px);min-height:540px}}
+@media(max-width:890px){.viewer-shell{height:calc(100dvh - 205px);min-height:440px}}
+@media(max-width:580px){.viewer-shell{height:calc(100dvh - 215px);min-height:390px}}
+
+/* On-canvas source-drawing comparison; image cropped from the supplied PDFs. */
+.drawing-compare{position:absolute;z-index:8;top:64px;right:18px;width:min(35%,360px);max-height:calc(100% - 160px);display:flex;flex-direction:column;background:#f8fafb;border:1px solid #4a7785;border-radius:11px;box-shadow:0 14px 50px #06111ec0;overflow:hidden;color:#193544}
+.drawing-compare-head{display:flex;justify-content:space-between;align-items:center;gap:7px;background:#193645;color:#d6eff3;padding:9px 11px;font-size:11px;font-weight:650}
+.drawing-compare-head span{display:flex;align-items:center;gap:7px}
+.drawing-compare-head button{border:0;color:#b6d6de;background:transparent;display:grid;place-items:center;padding:3px;border-radius:5px}
+.drawing-compare-head button:hover{background:#356070}
+.drawing-compare img{display:block;width:100%;min-height:0;object-fit:contain;flex:1;background:#fff}
+.drawing-compare p{font-size:10px;line-height:1.55;margin:0;padding:9px 11px;color:#49616e;border-top:1px solid #dbe5e9}
+@media(max-width:890px){.drawing-compare{width:min(43%,310px);top:48px;right:8px;max-height:calc(100% - 130px)}.drawing-compare p{font-size:9px;padding:6px}}
+@media(max-width:580px){.drawing-compare{width:52%;top:44px}.drawing-compare p{display:none}}

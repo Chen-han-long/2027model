@@ -1,13 +1,48 @@
+// Figure labels are transcribed from the supplied PDF drawings.
+// Only explicitly legible callouts are described as drawing dimensions.
+// Complex casting surfaces remain approximate; do not use for machining.
 export const parts = [
-  { id:'A', name:'工作台支座', english:'Rotary Worktable Support', material:'QT600-3', kind:'环形支撑构件', shape:'外径约 Ø1640 mm 的大型环形铸件，带多级同轴台阶、Ø490 级中心孔、环形座面与 16 组放射状加强筋。', dimensions:'Ø1640 × 高约 265 mm', note:'主尺寸按可读标注采用毫米建模；局部筋板与未标注铸造曲面为视图比例重建，非加工级 CAD。', features:['中心通孔','环形法兰','放射状筋板','周向连接点'] },
-  { id:'B', name:'主轴箱', english:'Spindle Housing', material:'QT400-18', kind:'主轴支承箱体', shape:'375 mm 正视宽度、约 415 mm 总高的主轴承箱；主轴孔、斜向支撑壁、底部安装脚和两侧筋板按正投影视图重建。', dimensions:'375 × 430 × 415 mm', note:'外形包络和主轴孔按正视、侧视标注建立；未标注筋板厚度、圆角及局部安装细节按视图比例重建。', features:['主轴安装孔','斜支撑侧板','安装底座','加强筋'] },
-  { id:'C', name:'窥视连管', english:'Inspection Elbow Pipe', material:'ZG230-450', kind:'弯曲连通管件', shape:'弯曲中空连管，两端为 Ø315 mm 法兰，法兰中心水平间距 600 mm、垂直偏移 440 mm，管体按约 Ø238/Ø198 mm 内外径重建。', dimensions:'中心距 600 × 440 mm；法兰 Ø315 mm', note:'端面中心偏移、R200 弯头和法兰尺寸按可读标注建立；局部管壁厚度、铸造过渡和孔细节仍为示意。', features:['弯曲管道','入口法兰','出口法兰','过渡圆角'] },
-  { id:'D', name:'举升梁左部支座', english:'Left Lifting Beam Support', material:'ASTM A487 4B', kind:'双孔异形支座', shape:'双轴承座铸造支承，主轴承外圈约 Ø630 mm、主孔 Ø100 mm，副孔约 Ø224 mm；长臂与曲面过渡按图示轮廓重建。', dimensions:'长 1155 × 厚约 610 × 高 738 mm', note:'主轴孔、主副轴承中心位置及外形包络按主要尺寸建立；复杂自由曲面和局部厚度按视图比例重建。', features:['主支承孔','辅助连接孔','异形翼板','加强过渡区'] },
-  { id:'E', name:'后轴承箱盖', english:'Rear Bearing Housing Cover', material:'HT250', kind:'半环形箱盖', shape:'长度约 1160 mm 的半圆筒形后轴承罩，拱形外半径 R410 mm、内壁按约 28 mm 壁厚重建，带底部连接边和顶部检查接口。', dimensions:'长 1160 mm；拱形外半径 R410 mm', note:'长度与 R410 拱形轮廓按图纸可读标注建立；壳体壁厚、分型面和密封槽仍为示意，不作为密封面加工依据。', features:['半圆罩壳','安装平面','螺栓分布','局部加强边'] },
-  { id:'F', name:'支架', english:'Support Bracket', material:'QT600', kind:'弧形机械支架', shape:'总宽 440 mm、深 360 mm 的弧形铸造支架，顶部两处 Ø40 mm 耳孔、下部安装孔和两片侧框按图纸轮廓重建。', dimensions:'440 × 360 × 117 mm', note:'总宽、深度和高度按图纸主要尺寸建立；孔系和局部铸造圆角根据视图重建，仍需原始 CAD 校核。', features:['弧形梁','左右安装台','中心定位座','侧筋'] },
-  { id:'G', name:'舱体', english:'Main Enclosure', material:'ZL101A', kind:'箱体壳件', shape:'606 mm 宽、945 mm 深、990 mm 高的箱形舱体；正面 Ø566 mm 主法兰、12-Ø18 均布孔及顶部 3 个 Ø132 接口。', dimensions:'606 × 945 × 990 mm', note:'外形包络、主法兰和上部接口按可读尺寸建立；内部流道、铸造曲面和局部筋板为比例重建。', features:['主圆孔','舱体框架','外部加强筋','连接孔位'] },
-  { id:'H', name:'壳体', english:'Outer Housing', material:'ZL101A', kind:'圆筒式壳体', shape:'680 × 650 × 890 mm 外框内的 Ø530 mm 圆筒壳体，Ø540 mm 端面法兰、12-Ø18 均布孔、内部支撑叶片和下部辅助接口。', dimensions:'680 × 650 × 890 mm', note:'外框、圆筒直径和端面法兰按图纸主尺寸建立；内部叶片、蜗壳过渡和辅助接口仍为示意，未完成加工级曲面重建。', features:['中心筒体','方形框架','四角安装点','外部肋板'] },
+  { id:'A', name:'工作台支座', english:'Rotary Worktable Support', material:'QT600-3', kind:'大型环形铸造支座',
+    shape:'原图 A-A 剖面标有 Ø1640 外径，中心为 Ø490 / Ø540 阶梯孔。底部俯视图呈开放的放射状筋板结构，不是实心圆盘。新版以 12 组辐射筋板、环形阶梯座和外圈连接孔重建。',
+    dimensions:'外径 Ø1640；中心阶孔 Ø490 / Ø540',
+    note:'外径与阶孔来自标注；筋板厚度、台阶高度及槽形细节尚需逐项校核。',
+    features:['Ø1640 外环','Ø490/Ø540 阶孔','开放辐射筋板','周向安装孔'] },
+  { id:'B', name:'主轴箱', english:'Spindle Housing', material:'QT400-18', kind:'斜撑式主轴承座',
+    shape:'对照侧视与右下角轴测图：主轴承座位于斜向三角形支撑壁上方，下部是有安装孔的平底座。取消上一版不合理的箱式围栏，改为主轴环、斜腹板和支承底脚。',
+    dimensions:'底座约 375 × 430；总高约 415 mm',
+    note:'底座尺寸和外形主要来自正投影；局部壁厚与未标注轴承内孔仍按视图估计。',
+    features:['上部主轴承孔','三角形斜腹板','底座孔系','侧面安装台'] },
+  { id:'C', name:'窥视连管', english:'Inspection Connecting Pipe', material:'ZG230-450', kind:'带分支的弯曲连通管',
+    shape:'图纸标注两端 Ø315 法兰、600 mm 水平和 440 mm 竖向中心偏移，此外还有 45° 斜向 Ø140 分支和顶部 Ø56 接口。新版增加两个分支并使两端主法兰平行。',
+    dimensions:'主法兰 Ø315；中心偏移 600 × 440 mm',
+    note:'中心距、法兰和分支标注来自原图；多管交汇处仍是示意网格，未做实体布尔合并。',
+    features:['两端 Ø315 法兰','45° 分支','顶部小接口','弯曲主流道'] },
+  { id:'D', name:'举升梁左部支座', english:'Left Lifting Beam Support', material:'ASTM A487 4B', kind:'双轴承曲臂铸件',
+    shape:'主视图中长曲臂左右分别延伸约 1054 和 1050 mm；X-X 剖面主轴承外径 Ø620，入口 Ø325、内部 Ø480 并有锥度。新版恢复较长的曲臂和渐变内孔。',
+    dimensions:'曲臂横向跨度约 2104；主轴承 Ø620 mm',
+    note:'主轴承截面尺寸有图纸依据；自由曲面、壁厚过渡及辅助孔位置为近似。',
+    features:['长曲臂','Ø620 主轴承','渐变内孔','副轴承座'] },
+  { id:'E', name:'后轴承箱盖', english:'Rear Bearing Housing Cover', material:'HT250', kind:'带检修口的半圆拱壳',
+    shape:'重新核对发现原图俯视图标注的总长是 2040 mm，之前误把剖视图的 1160 mm 局部尺寸当作总长。新版加入大尺寸矩形检修口、弧形罩壳、宽安装翼板及多处接口。',
+    dimensions:'总长 2040 mm；剖面局部 1160 mm',
+    note:'2040 为俯视图总长；罩壳半径、检修口壁厚、铸造过渡和连接孔的部分细节仍需核验。',
+    features:['2040 mm 总长','顶部矩形检修口','半圆拱壳','不规则安装翼板'] },
+  { id:'F', name:'支架', english:'Curved Support Bracket', material:'QT600', kind:'薄型弧形机械支架',
+    shape:'主视图总宽 440 mm，A-A 剖视厚度方向约 130 mm，整体为薄型弧形铸件，两侧带上部耳孔和下部安装孔；上一版错误的 360 mm 深框架已删除。',
+    dimensions:'宽 440；厚度方向约 130 mm',
+    note:'总宽与剖视深度有标注；局部曲率、孔深和筋板厚度为示意。',
+    features:['弧形主梁','双耳孔','多处安装孔','浅型铸造腹板'] },
+  { id:'G', name:'舱体', english:'Pressure Enclosure', material:'ZL101A', kind:'带大圆口的舱体铸件',
+    shape:'原图正视图主体是大圆形通口，上方排列三个小接口，侧面为收分的铸造外壳，下方有安装脚和辅助孔。新版删除大面积方形箱壁，改为圆筒主腔与局部铸造外框。',
+    dimensions:'外形约 606 × 945 × 990 mm',
+    note:'主要外形尺寸按可读标注；筒壁曲面、局部开孔和压力边界均未达到工程 CAD 精度。',
+    features:['主圆筒腔','两端圆形法兰','上部三接口','下部支承脚'] },
+  { id:'H', name:'壳体', english:'Cylindrical Cast Housing', material:'ZL101A', kind:'圆筒式承压壳体',
+    shape:'原图主结构是 Ø530 筒体与 Ø540 两端法兰，外形约 680 × 650 × 890 mm。下方一侧是 3 个 Ø71 孔座，另一侧有较大的辅助接口。新版去掉错误的完整方框架，保留两端窄安装板和斜向加强肋。',
+    dimensions:'680 × 650 × 890；Ø530 / Ø540 mm',
+    note:'外形包络、筒体和法兰有明确标注；内部过渡、肋板与局部孔系仍是视觉重建。',
+    features:['Ø530 主筒体','Ø540 双端法兰','下部三孔接口','侧面加强肋'] },
 ];
-export const partById = Object.fromEntries(parts.map((part) => [part.id, part]));
-export const palettes = ['#8eabc0','#bfc6d2','#9bafac','#d7a26d','#7385ad','#9a9da2','#77b5c9','#b78b8a'];
-export const quickQuestions = ['这个零件的主要作用是什么？','哪些部位可能是安装面？','图纸和三维示意模型有什么差别？'];
+export const partById=Object.fromEntries(parts.map(p=>[p.id,p]));
+export const palettes=['#8eabc0','#bfc6d2','#9bafac','#d7a26d','#7385ad','#9a9da2','#77b5c9','#b78b8a'];
+export const quickQuestions=['这个零件的主要作用是什么？','哪些尺寸来自原图，哪些是示意重建？','这张三维图与工程图还有哪些差异？'];

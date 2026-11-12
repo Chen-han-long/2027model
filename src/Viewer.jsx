@@ -78,12 +78,25 @@ function fitCamera(state, model, element) {
   const radius = Math.max(bounds.getBoundingSphere(new THREE.Sphere()).radius, maxDim * .5);
   const aspect = Math.max(.35, element.clientWidth / Math.max(1, element.clientHeight));
   const verticalFov = THREE.MathUtils.degToRad(state.camera.fov);
-  // Fit the full 3D bounding sphere; aspect correction prevents wide parts clipping.
-  const verticalDistance = radius / Math.sin(verticalFov / 2);
-  const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect);
-  const horizontalDistance = radius / Math.sin(horizontalFov / 2);
-  const distance = Math.max(verticalDistance, horizontalDistance) * 1.08;
+  const tanV = Math.tan(verticalFov / 2);
+  const tanH = tanV * aspect;
   const direction = new THREE.Vector3(1, .72, 1).normalize();
+  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),direction).normalize();
+  const up = new THREE.Vector3().crossVectors(direction,right).normalize();
+  // Perspective fit from all eight projected box corners, not an overly
+  // conservative bounding sphere. Occupies ~85% of the available viewport.
+  const margin = .86;
+  let distance = radius;
+  for (const x of [bounds.min.x, bounds.max.x])
+    for (const y of [bounds.min.y, bounds.max.y])
+      for (const z of [bounds.min.z, bounds.max.z]) {
+        const p = new THREE.Vector3(x,y,z).sub(center);
+        const depth = p.dot(direction);
+        distance = Math.max(distance,
+          depth + Math.abs(p.dot(right)) / (tanH * margin),
+          depth + Math.abs(p.dot(up)) / (tanV * margin));
+      }
+  distance = Math.max(distance, radius * 1.12);
   state.center.copy(center);
   state.fitDistance = distance;
   state.modelRadius = radius;
@@ -228,9 +241,11 @@ const Viewer = forwardRef(function Viewer({ id, imported, options, viewCommand, 
       const direction = current.camera.position.clone().sub(current.controls.target).multiplyScalar(factor);
       current.camera.position.copy(current.controls.target.clone().add(direction));
     } else {
+      const endOnX = !imported && id === 'E';
       const directions = {
-        iso: [1, .72, 1], front: [0, 0, 1], back: [0, 0, -1],
-        right: [1, 0, 0], top: [0, 1, .001]
+        iso: [1, .72, 1], front: endOnX ? [1, 0, 0] : [0, 0, 1],
+        back: endOnX ? [-1, 0, 0] : [0, 0, -1],
+        right: endOnX ? [0, 0, 1] : [1, 0, 0], top: [0, 1, .001]
       };
       const direction = new THREE.Vector3(...(directions[name] || directions.iso)).normalize();
       current.camera.position.copy(current.center).addScaledVector(direction, current.fitDistance);

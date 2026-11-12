@@ -1,14 +1,15 @@
 {
   "name": "2027-cad-studio",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "check": "node --check src/modelFactory.js && node --check src/ai.js && node --check worker/deepseek-proxy.js && node --check --input-type=module < src/Viewer.jsx",
-    "test:api": "node scripts/test-worker.mjs"
+    "test:api": "node scripts/test-worker.mjs",
+    "check:models": "node scripts/check-models.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

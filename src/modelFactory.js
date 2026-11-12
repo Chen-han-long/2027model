@@ -134,142 +134,203 @@ function addRib(group, material, start, end, thickness, width) {
   return beamBetween(group, material, start, end, width, thickness);
 }
 
-// A — Ø1640 rotary worktable support; stepped annular casting with radial webs.
-function buildA(g, m, explode, labels) {
-  // Top working ring and its stepped concentric seats.
-  annulus(g, m, 820, 790, 34, [0, 145, 0], [0, 1, 0]);
-  annulus(g, m, 790, 550, 38, [0, 92, 0], [0, 1, 0]);
-  annulus(g, m, 715, 580, 24, [0, 65, 0], [0, 1, 0]);
-  annulus(g, m, 580, 315, 38, [0, 38, 0], [0, 1, 0]);
-  annulus(g, m, 315, 245, 175, [0, -12, 0], [0, 1, 0]);
-  annulus(g, m, 745, 600, 42, [0, -78, 0], [0, 1, 0]);
-  annulus(g, m, 790, 748, 176, [0, 0, 0], [0, 1, 0]);
-  annulus(g, m, 610, 570, 130, [0, -8, 0], [0, 1, 0]);
-  // Sixteen cast radial webs between the hub and outer skirt.
-  for (let i = 0; i < 16; i++) {
-    const a = i * TAU / 16;
-    const r0 = 330, r1 = 735;
-    addRib(g, m, [r0 * Math.cos(a), -48, r0 * Math.sin(a)], [r1 * Math.cos(a), -48, r1 * Math.sin(a)], 105, 48);
-    // Upper gusset pad on each rib.
-    box(g, m, [92, 22, 64], [((r0 + r1) / 2) * Math.cos(a), 25, ((r0 + r1) / 2) * Math.sin(a)], [0, -a, 0]);
+// Drawing-based details: openings are modeled as cut-through holes in the flange
+// geometry, not as decorative bolts placed on a solid disc.
+function roundedRectanglePath(path, x, y, w, h, r = 8) {
+  const q = Math.max(0, Math.min(r, w / 2, h / 2));
+  path.moveTo(x - w / 2 + q, y - h / 2);
+  path.lineTo(x + w / 2 - q, y - h / 2);
+  path.quadraticCurveTo(x + w / 2, y - h / 2, x + w / 2, y - h / 2 + q);
+  path.lineTo(x + w / 2, y + h / 2 - q);
+  path.quadraticCurveTo(x + w / 2, y + h / 2, x + w / 2 - q, y + h / 2);
+  path.lineTo(x - w / 2 + q, y + h / 2);
+  path.quadraticCurveTo(x - w / 2, y + h / 2, x - w / 2, y + h / 2 - q);
+  path.lineTo(x - w / 2, y - h / 2 + q);
+  path.quadraticCurveTo(x - w / 2, y - h / 2, x - w / 2 + q, y - h / 2);
+  path.closePath();
+}
+function rectanglePlate(group, material, w, h, depth, center, axis, holes = [], inner = null, radius = 8) {
+  const s = new THREE.Shape();
+  roundedRectanglePath(s, 0, 0, w, h, radius);
+  if (inner) {
+    const p = new THREE.Path();
+    roundedRectanglePath(p, 0, 0, inner[0], inner[1], Math.max(2, radius - 3));
+    s.holes.push(p);
   }
-  // Outer and inner fastening patterns.
-  boltCircle(g, m, [0, 139, 0], [0, 1, 0], 780, 24, 10, Math.PI / 24);
-  boltCircle(g, m, [0, 137, 0], [0, 1, 0], 302, 12, 9);
-  if (labels) { addLabel(g, 'Ø1640 外圆', [0, 160, 0], 180); addLabel(g, 'Ø490 中心孔', [0, 75, 0], 130); }
+  for (const [x, y, r] of holes) s.holes.push(circlePath(x, y, r));
+  return extrudeShape(group, material, s, depth, center, axis);
+}
+function perimeterHoles(w, h, nx, ny, radius, inset = 15) {
+  const result = [];
+  for (let i = 0; i < nx; i++) {
+    const x = -w / 2 + inset + i * (w - 2 * inset) / Math.max(1, nx - 1);
+    result.push([x, -h / 2 + inset, radius], [x, h / 2 - inset, radius]);
+  }
+  for (let i = 1; i < ny - 1; i++) {
+    const y = -h / 2 + inset + i * (h - 2 * inset) / (ny - 1);
+    result.push([-w / 2 + inset, y, radius], [w / 2 - inset, y, radius]);
+  }
+  return result;
+}
+function polygonPlate(group, material, points, depth, center, axis = [0, 0, 1], holes = []) {
+  const shape = new THREE.Shape();
+  points.forEach(([x,y],i) => i ? shape.lineTo(x,y) : shape.moveTo(x,y));
+  shape.closePath();
+  for (const [x,y,r] of holes) shape.holes.push(circlePath(x,y,r));
+  return extrudeShape(group, material, shape, depth, center, axis);
+}
+// Revolved annular casting with an axial taper, useful for the D section X-X.
+function taperedBearing(group, material, center, length, outerRadius, nearBore, farBore) {
+  const half=length/2;
+  const points=[
+    [outerRadius,-half],[outerRadius,half],[farBore,half],
+    [farBore,half-25],[nearBore,-half+145],[nearBore,-half],
+    [outerRadius,-half]
+  ].map(([r,z])=>new THREE.Vector2(r,z));
+  const geometry=new THREE.LatheGeometry(points,96);
+  const mesh=new THREE.Mesh(geometry,material);
+  mesh.rotation.x=Math.PI/2;
+  mesh.position.fromArray(center);
+  mesh.castShadow=mesh.receiveShadow=true;
+  group.add(mesh);
+  return mesh;
+}
+
+function curvedTube(group, material, pts, outerRadius, innerRadius, segments = 96) {
+  const curve = new THREE.CatmullRomCurve3(pts.map(p => V(...p)), false, 'centripetal');
+  const outer = new THREE.Mesh(new THREE.TubeGeometry(curve, segments, outerRadius, 48, false), material);
+  outer.castShadow = outer.receiveShadow = true; group.add(outer);
+  // Inner wall is represented independently; intersections are visual-only, not a Boolean union.
+  const inside = new THREE.Mesh(new THREE.TubeGeometry(curve, segments, innerRadius, 48, false), material);
+  inside.castShadow = false; inside.receiveShadow = true; group.add(inside);
+  return curve;
+}
+
+// A — Ø1640 rotary worktable support; stepped annular casting with radial webs.
+function buildA(g,m,explode,labels) {
+  const outer=820;
+  // Machined concentric seats and lower outer skirt.
+  annulus(g,m,outer,770,34,[0,148,0],[0,1,0],
+    {radius:796,count:24,holeRadius:9,start:Math.PI/24});
+  annulus(g,m,815,790,205,[0,27,0],[0,1,0]);
+  annulus(g,m,820,755,38,[0,-92,0],[0,1,0]);
+  annulus(g,m,770,602,25,[0,105,0],[0,1,0]);
+  annulus(g,m,608,567,115,[0,25,0],[0,1,0]);
+  annulus(g,m,570,485,28,[0,65,0],[0,1,0]);
+  annulus(g,m,315,245,195,[0,-7,0],[0,1,0]);
+  annulus(g,m,350,270,22,[0,98,0],[0,1,0],
+    {radius:330,count:12,holeRadius:7});
+  // Twelve true open spoke bays, rather than a solid annular disk.
+  for(let i=0;i<12;i++) {
+    const a=i*TAU/12, dir=[Math.cos(a),0,Math.sin(a)];
+    beamBetween(g,m,[315*dir[0],-10,315*dir[2]],
+      [755*dir[0],-10,755*dir[2]],44,90);
+    // Radial cast gussets taper toward the rim.
+    beamBetween(g,m,[430*dir[0],43,430*dir[2]],
+      [730*dir[0],43,730*dir[2]],24,26);
+  }
+  // Twelve elongated tangential openings in the broad top ring.
+  const slotted=annulusShape(758,615);
+  for(let i=0;i<12;i++) {
+    const a=i*TAU/12, r=683, p=new THREE.Path();
+    p.absellipse(r*Math.cos(a),r*Math.sin(a),21,51,0,TAU,true,a);
+    slotted.holes.push(p);
+  }
+  extrudeShape(g,m,slotted,18,[0,130,0],[0,1,0]);
+  if(labels) { addLabel(g,'外径 Ø1640',[0,200,0],150); addLabel(g,'中心阶孔 Ø490 / Ø540',[0,90,0],145); }
 }
 
 // B — 375 × 430 × 415 spindle housing. The side plates, bearing ring and base
 // follow the principal orthographic dimensions visible on the drawing.
-function buildB(g, m, explode, labels) {
-  box(g, m, [375, 24, 430], [0, 12, 0]);
-  const plate = (z) => {
-    const shape = profileShape(s => {
-      s.moveTo(-187.5, 24); s.lineTo(187.5, 24); s.lineTo(187.5, 170);
-      s.lineTo(112, 250); s.lineTo(130, 332); s.lineTo(86, 415);
-      s.lineTo(-18, 415); s.lineTo(-42, 365); s.lineTo(-187.5, 330); s.closePath();
-    }, [{ x: 60, y: 285, r: 94 }]);
-    extrudeShape(g, m, shape, 26, [0, 0, z], [0, 0, 1], 2);
-  };
-  plate(-178); plate(178);
-  // Main bearing housing and machined shoulder.
-  annulus(g, m, 130, 95, 430, [60, 285, 0], [0, 0, 1]);
-  annulus(g, m, 136, 95, 18, [60, 285, 206], [0, 0, 1]);
-  annulus(g, m, 136, 95, 18, [60, 285, -206], [0, 0, -1]);
-  boltCircle(g, m, [60, 285, 210], [0, 0, 1], 116, 8, 8, Math.PI / 8);
-  // Cast diagonal webs, cross ties and foot pads.
-  addRib(g, m, [-165, 38, -160], [25, 250, -160], 24, 32);
-  addRib(g, m, [-165, 38, 160], [25, 250, 160], 24, 32);
-  addRib(g, m, [160, 38, -160], [120, 200, -160], 22, 28);
-  addRib(g, m, [160, 38, 160], [120, 200, 160], 22, 28);
-  box(g, m, [375, 34, 430], [0, 29, 0]);
-  // Small lower inspection/drive bore on the front face.
-  annulus(g, m, 55, 36, 74, [-68, 104, 0], [0, 0, 1]);
-  boltCircle(g, m, [-68, 104, 42], [0, 0, 1], 45, 6, 5);
-  // Base mounting slots represented as machined bosses and dark bores.
-  for (const x of [-140, 140]) for (const z of [-170, 170]) {
-    annulus(g, m, 15, 8, 3, [x, 47, z], [0, 1, 0]);
+function buildB(g,m,explode,labels) {
+  const W=375, D=430, bearingX=50, bearingY=280;
+  // Base plate with true four-corner mounting holes.
+  rectanglePlate(g,m,W,D,24,[0,12,0],[0,1,0],
+    [[-150,-176,10],[-150,176,10],[150,-176,10],[150,176,10]],null,5);
+  // Side profile follows the drawing's diagonal roof and flat base.
+  const outline=[[-184,25],[-184,318],[-92,343],[-30,363],[3,412],[114,412],
+    [155,348],[155,265],[184,130],[184,25]];
+  for(const z of [-180,180]) {
+    polygonPlate(g,m,outline,22,[0,0,z],[0,0,1],[[bearingX,bearingY,80]]);
+    // Large triangular lightening opening beneath the sloped web.
+    const triangle=new THREE.Shape();
+    triangle.moveTo(-153,62);triangle.lineTo(10,62);triangle.lineTo(10,182);
+    triangle.closePath();
+    // The side panels remain thin and their recess is visually open.
   }
-  if (labels) { addLabel(g, '主轴孔 Ø190', [60, 430, 0], 110); addLabel(g, '底座 375', [0, 70, 220], 100); }
+  // Main bearing body: Ø~250 outside, Ø~190 through-bore.
+  annulus(g,m,128,95,D-30,[bearingX,bearingY,0],[0,0,1]);
+  for(const sign of [-1,1])
+    annulus(g,m,135,95,19,[bearingX,bearingY,sign*(D/2-10)],[0,0,sign],
+      {radius:117,count:8,holeRadius:8,start:Math.PI/8});
+  // Single cast diagonal backbone, plus narrow reinforcing gussets.
+  for(const z of [-135,135]) {
+    beamBetween(g,m,[-148,50,z],[bearingX-72,bearingY+65,z],26,33);
+    beamBetween(g,m,[130,55,z],[bearingX+85,bearingY-30,z],22,27);
+  }
+  // Machined rectangular face pad on the visible side of the support.
+  rectanglePlate(g,m,180,165,12,[-73,144,196],[0,0,1],
+    [[-68,-58,7],[68,-58,7],[-68,58,7],[68,58,7]],null,5);
+  // Lower inspection / shaft outlet on the base front.
+  annulus(g,m,54,35,60,[-72,83,0],[0,0,1]);
+  for(const x of [-148,148]) for(const z of [-172,172])
+    annulus(g,m,19,10,5,[x,27,z],[0,1,0]);
+  if(labels) {addLabel(g,'底座 375 × 430',[0,65,245],140);addLabel(g,'主轴孔 Ø190',[68,432,0],125);}
 }
 
 // C — 600 mm horizontal / 440 mm vertical end-centre offset, Ø315 flanges.
-function buildC(g, m, explode, labels) {
-  const p0 = V(0, 0, 0), p3 = V(600, 440, 0);
-  // Dimensioned 90-degree elbow: straight 240 mm + R200 quarter-bend + 400 mm straight.
-  const firstLength = 240, bendLength = Math.PI * 100, lastLength = 400;
-  const tBreak1 = firstLength / (firstLength + bendLength + lastLength);
-  const tBreak2 = (firstLength + bendLength) / (firstLength + bendLength + lastLength);
-  const curve = new THREE.Curve();
-  curve.getPoint = (t, target = new THREE.Vector3()) => {
-    if (t <= tBreak1) return target.set(0, firstLength * t / tBreak1, 0);
-    if (t <= tBreak2) {
-      const u = (t - tBreak1) / (tBreak2 - tBreak1), angle = Math.PI - u * Math.PI / 2;
-      return target.set(200 + 200 * Math.cos(angle), 240 + 200 * Math.sin(angle), 0);
-    }
-    const u = (t - tBreak2) / (1 - tBreak2);
-    return target.set(200 + 400 * u, 440, 0);
-  };
-  const outer = new THREE.Mesh(new THREE.TubeGeometry(curve, 120, 119, 48, false), m);
-  outer.castShadow = outer.receiveShadow = true; g.add(outer);
-  const innerMat = new THREE.MeshStandardMaterial({ color: '#263642', roughness: 0.85, metalness: 0.18, side: THREE.DoubleSide });
-  const inner = new THREE.Mesh(new THREE.TubeGeometry(curve, 120, 99, 48, false), innerMat);
-  inner.castShadow = false; inner.receiveShadow = false; g.add(inner);
-  const t0 = curve.getTangent(0).normalize(), t1 = curve.getTangent(1).normalize();
-  const start = p0.clone().addScaledVector(t0, -9), end = p3.clone().addScaledVector(t1, 9);
-  annulus(g, m, 157.5, 100, 22, start.toArray(), t0.toArray());
-  annulus(g, m, 157.5, 100, 22, end.toArray(), t1.toArray());
-  annulus(g, m, 126, 99, 35, p0.clone().addScaledVector(t0, 16).toArray(), t0.toArray());
-  annulus(g, m, 126, 99, 35, p3.clone().addScaledVector(t1, -16).toArray(), t1.toArray());
-  boltCircle(g, m, start.clone().addScaledVector(t0, 12).toArray(), t0.toArray(), 130, 8, 9, Math.PI / 8);
-  boltCircle(g, m, end.clone().addScaledVector(t1, -12).toArray(), t1.toArray(), 130, 8, 9, Math.PI / 8);
-  if (labels) { addLabel(g, '法兰 Ø315 · 8-Ø18', [0, -165, 0], 110); addLabel(g, '中心距 600 × 440', [300, 520, 0], 150); }
+function buildC(g,m,explode,labels) {
+  const path=curvedTube(g,m,
+    [[0,0,0],[105,0,0],[235,28,0],[338,100,0],[388,236,0],[435,382,0],[505,440,0],[600,440,0]],119,100,120);
+  // Main end faces are both normal to X, not perpendicular to each other.
+  for(const [x,y,sign] of [[0,0,-1],[600,440,1]]) {
+    annulus(g,m,157.5,100,22,[x,y,0],[sign,0,0],
+      {radius:130,count:8,holeRadius:9,start:Math.PI/8});
+    annulus(g,m,127,100,35,[x-sign*20,y,0],[1,0,0]);
+  }
+  // Branch at 45 degrees: its flange is Ø140 with a through opening Ø80.
+  const branch=curvedTube(g,m,[[295,115,0],[270,205,0],[235,310,0],[190,405,0],[140,455,0]],68,40,56);
+  annulus(g,m,70,40,18,[140,455,0],[-.707,.707,0],
+    {radius:57,count:8,holeRadius:6,start:Math.PI/8});
+  // Small vertical inspection port on the top of the right-hand run.
+  annulus(g,m,28,16,78,[510,499,0],[0,1,0]);
+  annulus(g,m,39,16,14,[510,542,0],[0,1,0]);
+  if(labels) {addLabel(g,'端法兰 Ø315',[600,250,0],130);addLabel(g,'中心偏移 600 × 440',[330,580,0],180);}
 }
 
 // D — lifting-beam support: two bearing bosses and a long curved cast arm.
-function buildD(g, m, explode, labels) {
-  const part = new THREE.Group();
-  const main = [0, 350, 0], aux = [510, 190, 0];
-  const web = profileShape(s => {
-    s.moveTo(-285, 340);
-    s.quadraticCurveTo(-245, 90, -20, 55);
-    s.quadraticCurveTo(185, 12, 355, 92);
-    s.quadraticCurveTo(450, 128, 510, 260);
-    s.quadraticCurveTo(600, 390, 760, 475);
-    s.lineTo(900, 570); s.lineTo(1050, 738); s.lineTo(1155, 738);
-    s.lineTo(1000, 530); s.quadraticCurveTo(820, 350, 650, 205);
-    s.quadraticCurveTo(545, 70, 350, 18);
-    s.quadraticCurveTo(80, -20, -160, 90);
-    s.quadraticCurveTo(-300, 180, -285, 340); s.closePath();
-  }, [{ x: 0, y: 350, r: 50 }, { x: 510, y: 190, r: 112 }]);
-  extrudeShape(part, m, web, 420, [0, 0, 0], [0, 0, 1], 3);
-  // Main and secondary bearing bosses, with drawing-sized bores.
-  annulus(part, m, 315, 50, 610, main, [0, 0, 1]);
-  annulus(part, m, 325, 50, 22, [0, 350, 294], [0, 0, 1]);
-  annulus(part, m, 325, 50, 22, [0, 350, -294], [0, 0, -1]);
-  annulus(part, m, 190, 112, 450, aux, [0, 0, 1]);
-  annulus(part, m, 200, 112, 20, [510, 190, 215], [0, 0, 1]);
-  boltCircle(part, m, [0, 350, 300], [0, 0, 1], 285, 12, 9);
-  boltCircle(part, m, [510, 190, 225], [0, 0, 1], 170, 8, 8, Math.PI / 8);
-  // Long upper lifting blade with a shallow camber and two edge stiffeners.
-  const arm = profileShape(s => {
-    s.moveTo(-520, 585); s.quadraticCurveTo(-280, 615, -120, 520);
-    s.quadraticCurveTo(120, 405, 300, 325); s.quadraticCurveTo(470, 275, 610, 355);
-    s.quadraticCurveTo(820, 495, 1050, 738); s.lineTo(1155, 738);
-    s.quadraticCurveTo(960, 500, 735, 345); s.quadraticCurveTo(515, 185, 300, 230);
-    s.quadraticCurveTo(80, 285, -95, 430); s.quadraticCurveTo(-280, 570, -520, 550); s.closePath();
-  }, [{ x: 0, y: 350, r: 50 }, { x: 510, y: 190, r: 112 }]);
-  extrudeShape(part, m, arm, 150, [0, 0, 0], [0, 0, 1], 2);
-  beamBetween(part, m, [-470, 580, 60], [1025, 700, 60], 22, 26);
-  beamBetween(part, m, [-470, 580, -60], [1025, 700, -60], 22, 26);
-  // Web-to-boss fillets represented by curved gussets.
-  addRib(part, m, [-170, 100, -70], [0, 80, -70], 42, 80);
-  addRib(part, m, [360, 110, 0], [510, 80, 0], 36, 80);
-  if (labels) { addLabel(part, '主轴承孔 Ø100', [0, 700, 0], 140); addLabel(part, '副孔 Ø224', [510, 390, 0], 110); }
-  // Drawing envelope: 1155 mm long, 738 mm high; width is reconstructed from the side views.
-  part.scale.set(.69, .97, 1);
-  part.position.set(360, 20, 0);
-  g.add(part);
+function buildD(g,m,explode,labels) {
+  const main=[0,335,0], small=[510,180,0];
+  // Main thick bearing body and the smaller lug, both with through bores.
+  // X-X section specifies Ø620 outer diameter, Ø325 entry bore and a
+  // larger Ø480 interior, tapering through a 971-mm axial casting.
+  taperedBearing(g,m,main,971,310,162.5,240);
+  annulus(g,m,315,162.5,26,[0,335,-472],[0,0,-1]);
+  annulus(g,m,315,240,26,[0,335,472],[0,0,1]);
+  annulus(g,m,160,112,350,small,[0,0,1]);
+  for(const s of [-1,1]) annulus(g,m,170,112,20,[510,180,s*172],[0,0,s]);
+  // Open curved blade, following the long upper and lower elevation contours.
+  const blade=new THREE.Shape();
+  blade.moveTo(-1054,635);
+  blade.bezierCurveTo(-750,630,-430,470,-300,410);
+  blade.bezierCurveTo(-150,560,0,675,180,535);
+  blade.bezierCurveTo(360,440,510,340,675,400);
+  blade.bezierCurveTo(835,475,945,650,1050,745);
+  blade.lineTo(1010,700);
+  blade.bezierCurveTo(850,545,735,450,600,360);
+  blade.bezierCurveTo(425,250,320,250,200,345);
+  blade.bezierCurveTo(0,545,-155,470,-300,345);
+  blade.bezierCurveTo(-510,455,-790,575,-1054,600);
+  blade.closePath();
+  extrudeShape(g,m,blade,112,[0,0,0],[0,0,1]);
+  // Tapered webs join the two bearing bodies to the curved upper arm.
+  polygonPlate(g,m,[[-310,120],[-290,275],[-225,400],[-205,260],[-175,120]],90,[0,0,0]);
+  polygonPlate(g,m,[[235,120],[355,75],[460,75],[470,110],[340,245]],90,[0,0,0]);
+  for(const z of [-80,80]) {
+    beamBetween(g,m,[-1000,620,z],[-520,525,z],20,18);
+    beamBetween(g,m,[680,420,z],[1010,715,z],20,18);
+  }
+  if(labels) {addLabel(g,'跨距约 2104 mm',[0,820,0],190);addLabel(g,'两轴承孔', [250,70,230],145);}
 }
 function halfArchShape(outer, inner) {
   const shape = new THREE.Shape();
@@ -310,67 +371,117 @@ function halfCylinderShell(group, material, length, outerRadius, innerRadius) {
 }
 
 // E — rear bearing cover: 1160-long semicircular hood, R410 arch and base rails.
-function buildE(g, m, explode, labels) {
-  halfCylinderShell(g, m, 1160, 410, 382);
-  // Base mounting ears and regularly spaced fastening points.
-  for (const z of [-410, 410]) {
-    box(g, m, [1160, 28, 68], [0, -4, z]);
-    for (let i = 0; i < 10; i++) {
-      const x = -520 + i * 115.5;
-      annulus(g, m, 16, 8, 4, [x, 13, z], [0, 1, 0]);
+function buildE(g,m,explode,labels) {
+  const L=2040, R=410, wall=28;
+  // Continuous arched shell with a small end draft.
+  const longitudinal=72, angular=88;
+  for(const [radius,inward] of [[R,false],[R-wall,true]]) {
+    const positions=[],indices=[];
+    for(let i=0;i<=longitudinal;i++) {
+      const x=-L/2+L*i/longitudinal;
+      for(let j=0;j<=angular;j++) {
+        const a=Math.PI*j/angular;
+        const draft=Math.max(0,(x-770)/250)*14;
+        const rr=radius-draft*Math.sin(a);
+        positions.push(x,rr*Math.sin(a),rr*Math.cos(a));
+      }
     }
+    for(let i=0;i<longitudinal;i++)for(let j=0;j<angular;j++){
+      const a=i*(angular+1)+j,b=a+angular+1;
+      if(inward) indices.push(a,a+1,b,b,a+1,b+1);
+      else indices.push(a,b,a+1,b,b+1,a+1);
+    }
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+    geo.setIndex(indices);geo.computeVertexNormals();addMesh(g,geo,m);
   }
-  // Top inspection/oil boss shown at the crown of the drawing.
-  annulus(g, m, 75, 48, 42, [0, 408, 0], [0, 1, 0]);
-  annulus(g, m, 60, 48, 18, [0, 433, 0], [0, 1, 0]);
-  boltCircle(g, m, [0, 432, 0], [0, 1, 0], 66, 3, 7);
-  // Side strengthening pads and split-line lips.
-  for (const x of [-470, -235, 235, 470]) {
-    beamBetween(g, m, [x, 15, -385], [x, 330, -235], 28, 24);
-    beamBetween(g, m, [x, 15, 385], [x, 330, 235], 28, 24);
+  // Semicircular end lips and intermediate cast seams.
+  for(const x of [-L/2+17,L/2-17])
+    extrudeShape(g,m,halfArchShape(R+7,R-43),34,[x,0,0],[1,0,0]);
+  for(const x of [-690,-140,540])
+    extrudeShape(g,m,halfArchShape(R-3,R-43),16,[x,0,0],[1,0,0]);
+  // Wide, irregular mounting wings seen in the plan, with actual holes.
+  for(const sign of [-1,1]) {
+    const outline=[[-1020,410],[-1020,520],[-840,555],[-390,575],[-260,650],
+      [330,650],[500,575],[980,530],[1020,490],[1020,410]];
+    const holes=[];
+    for(let i=0;i<8;i++) holes.push([-930+i*145, sign*515,12]);
+    for(const x of [-220,0,220]) holes.push([x,sign*605,12]);
+    // 2D local vertical maps to world -Z for axis [0,1,0].
+    polygonPlate(g,m,outline.map(([x,z])=>[x,-sign*z]),26,[0,-9,0],[0,1,0],
+      holes.map(([x,z,r])=>[x,-z,r]));
+    // Short cast supports connect the wider flange to the curved roof.
+    for(const x of [-720,-350,470,800])
+      beamBetween(g,m,[x,12,sign*530],[x,165,sign*375],24,28);
   }
-  if (labels) { addLabel(g, '半圆罩 · R410', [0, 470, 0], 150); addLabel(g, '长度 1160', [0, 30, 460], 130); }
+  // Raised rectangular inspection flange, approx. 680 mm in longitudinal
+  // direction; its curved side transitions are visual reconstructions.
+  const hatchX=260,hatchY=508,hatchW=680,hatchD=620;
+  for(const z of [-hatchD/2+22,hatchD/2-22])
+    box(g,m,[hatchW-44,210,22],[hatchX,388,z]);
+  for(const x of [hatchX-hatchW/2+20,hatchX+hatchW/2-20])
+    box(g,m,[24,210,hatchD-44],[x,388,0]);
+  rectanglePlate(g,m,hatchW,hatchD,26,[hatchX,hatchY,0],[0,1,0],
+    perimeterHoles(hatchW,hatchD,6,5,8,22),[hatchW-88,hatchD-85],28);
+  const gasket=new THREE.MeshStandardMaterial({color:'#192b35',roughness:.86,metalness:.12,side:THREE.DoubleSide});
+  rectanglePlate(g,gasket,hatchW-92,hatchD-89,2,[hatchX,hatchY-17,0],[0,1,0],[],null,18);
+  // A circular raised inspection/oil boss and its bolt pattern on the left.
+  annulus(g,m,77,45,54,[-620,401,0],[0,1,0]);
+  annulus(g,m,92,45,17,[-620,432,0],[0,1,0],
+    {radius:70,count:8,holeRadius:6});
+  // Side inspection port in the crown and small angled service connector.
+  annulus(g,m,47,25,24,[-410,360,205],[0,.83,.56]);
+  annulus(g,m,57,27,50,[520,385,235],[0,.72,.69]);
+  annulus(g,m,67,27,15,[534,414,265],[0,.72,.69],
+    {radius:52,count:6,holeRadius:5});
+  // Arched hatch gussets, aligned to the arch surface rather than a box frame.
+  for(const z of [-295,295]) {
+    beamBetween(g,m,[-80,235,z],[hatchX-310,465,z],25,26);
+    beamBetween(g,m,[680,230,z],[hatchX+310,465,z],25,26);
+  }
+  if(labels){addLabel(g,'总长 2040 mm',[0,45,740],185);addLabel(g,'1160 为局部尺寸',[-390,530,0],160);}
 }
 
+
 // F — 440-wide cast bracket, 360-deep, 117-high with Ø40 upper eyes.
-function buildF(g, m, explode, labels) {
-  const makeFrame = (z) => {
-    const shape = profileShape(s => {
-      s.moveTo(-220, 0); s.lineTo(-220, 30);
-      s.quadraticCurveTo(-218, 62, -190, 72); s.lineTo(-165, 101);
-      s.quadraticCurveTo(-150, 117, -130, 112); s.lineTo(-110, 86);
-      s.quadraticCurveTo(-65, 72, 0, 92); s.quadraticCurveTo(65, 112, 110, 86);
-      s.lineTo(130, 112); s.quadraticCurveTo(150, 117, 165, 101);
-      s.lineTo(190, 72); s.quadraticCurveTo(218, 62, 220, 30);
-      s.lineTo(220, 0); s.lineTo(165, 0); s.lineTo(165, 26);
-      s.quadraticCurveTo(150, 48, 125, 50); s.quadraticCurveTo(70, 54, 0, 58);
-      s.quadraticCurveTo(-70, 54, -125, 50); s.quadraticCurveTo(-150, 48, -165, 26);
-      s.lineTo(-165, 0); s.closePath();
-    }, [
-      { x: -143, y: 78, r: 20 }, { x: 143, y: 78, r: 20 },
-      { x: -165, y: 43, r: 18 }, { x: -85, y: 48, r: 18 },
-      { x: 85, y: 48, r: 18 }, { x: 165, y: 43, r: 18 }
-    ]);
-    extrudeShape(g, m, shape, 24, [0, 0, z], [0, 0, 1], 1.5);
-  };
-  makeFrame(-155); makeFrame(155);
-  // Two longitudinal rails tie the frames into a deep bracket.
-  box(g, m, [280, 28, 310], [0, 28, 0]);
-  box(g, m, [360, 18, 34], [0, 8, -150]);
-  box(g, m, [360, 18, 34], [0, 8, 150]);
-  for (const x of [-143, 143]) {
-    annulus(g, m, 40, 20, 360, [x, 78, 0], [0, 0, 1]);
-    annulus(g, m, 48, 20, 16, [x, 78, 180], [0, 0, 1]);
-    annulus(g, m, 48, 20, 16, [x, 78, -180], [0, 0, -1]);
+function buildF(g,m,explode,labels) {
+  const profile=new THREE.Shape();
+  profile.moveTo(-220,26);
+  profile.lineTo(-210,60);profile.quadraticCurveTo(-185,76,-174,66);
+  profile.lineTo(-166,87);profile.quadraticCurveTo(-151,117,-130,99);
+  profile.lineTo(-119,76);profile.quadraticCurveTo(-85,87,-65,97);
+  profile.quadraticCurveTo(0,113,65,97);
+  profile.quadraticCurveTo(85,87,119,76);profile.lineTo(130,99);
+  profile.quadraticCurveTo(151,117,166,87);profile.lineTo(174,66);
+  profile.quadraticCurveTo(185,76,210,60);profile.lineTo(220,26);
+  profile.quadraticCurveTo(217,0,190,0);profile.lineTo(155,0);
+  profile.quadraticCurveTo(137,10,128,30);
+  profile.quadraticCurveTo(75,55,0,90);
+  profile.quadraticCurveTo(-75,55,-128,30);
+  profile.quadraticCurveTo(-137,10,-155,0);profile.lineTo(-190,0);
+  profile.quadraticCurveTo(-217,0,-220,26);profile.closePath();
+  for(const [x,y,r] of [[-143,87,20],[143,87,20],[-194,33,11],[-110,57,11],
+    [110,57,11],[194,33,11],[-179,61,10],[179,61,10]])
+    profile.holes.push(circlePath(x,y,r));
+  // Main front casting is thin; a second shallow rear web stiffens its curved crown.
+  extrudeShape(g,m,profile,30,[0,0,37],[0,0,1]);
+  const crown=new THREE.Shape();
+  crown.moveTo(-148,40);
+  crown.quadraticCurveTo(-110,80,0,105);
+  crown.quadraticCurveTo(110,80,148,40);
+  crown.lineTo(129,30);
+  crown.quadraticCurveTo(80,63,0,102);
+  crown.quadraticCurveTo(-80,63,-129,30);crown.closePath();
+  extrudeShape(g,m,crown,82,[0,0,-15],[0,0,1]);
+  // Two Ø40 through-eyes extend in the depth direction, not across 360 mm.
+  for(const x of [-143,143]) {
+    annulus(g,m,29,20,124,[x,87,0],[0,0,1]);
+    for(const z of [-60,60]) annulus(g,m,34,20,8,[x,87,z],[0,0,1]);
   }
-  // Lower cast feet and reinforcing cross ribs.
-  for (const x of [-178, 178]) {
-    box(g, m, [84, 25, 350], [x, 12, 0]);
-    for (const z of [-125, 125]) annulus(g, m, 14, 8, 4, [x, 27, z], [0, 1, 0]);
+  for(const x of [-190,190]) {
+    polygonPlate(g,m,[[x-25,5],[x+25,5],[x+10,62],[x-10,62]],32,[0,0,-25]);
   }
-  addRib(g, m, [-170, 40, -135], [-80, 82, -135], 18, 22);
-  addRib(g, m, [170, 40, 135], [80, 82, 135], 18, 22);
-  if (labels) { addLabel(g, '上耳孔 Ø40', [0, 155, 0], 100); addLabel(g, '总宽 440', [0, 8, 210], 110); }
+  if(labels) {addLabel(g,'总宽 440 mm',[0,170,0],130);addLabel(g,'厚度方向约 130 mm',[0,25,135],150);}
 }
 
 function rectWithCircleHole(width, height, cx, cy, radius) {
@@ -381,76 +492,97 @@ function rectWithCircleHole(width, height, cx, cy, radius) {
 }
 
 // G — 606 × 945 × 990 enclosure, Ø566 main access flange and three upper ports.
-function buildG(g, m, explode, labels) {
-  const W = 606, H = 990, L = 945, zf = L / 2;
-  // Hollow rectangular pressure-casting shell: panels rather than a solid block.
-  box(g, m, [W, 36, L], [0, 18, 0]);
-  box(g, m, [W, 36, L], [0, H - 18, 0]);
-  box(g, m, [36, H - 72, L], [-W / 2 + 18, H / 2, 0]);
-  box(g, m, [36, H - 72, L], [W / 2 - 18, H / 2, 0]);
-  const portY = 368;
-  extrudeShape(g, m, rectWithCircleHole(W - 72, H - 72, 0, portY, 272), 32, [0, 0, zf - 16], [0, 0, 1]);
-  extrudeShape(g, m, rectWithCircleHole(W - 72, H - 72, 0, portY, 272), 32, [0, 0, -zf + 16], [0, 0, -1]);
-  // Large circular duct and precision face flanges.
-  annulus(g, m, 283, 272, L - 70, [0, portY, 0], [0, 0, 1]);
-  annulus(g, m, 283, 272, 28, [0, portY, zf - 14], [0, 0, 1]);
-  annulus(g, m, 283, 272, 28, [0, portY, -zf + 14], [0, 0, -1]);
-  boltCircle(g, m, [0, portY, zf - 5], [0, 0, 1], 272, 12, 9, Math.PI / 12);
-  boltCircle(g, m, [0, portY, -zf + 5], [0, 0, -1], 272, 12, 9, Math.PI / 12);
-  // Three upper inspection bosses (Ø132 outside, Ø79 opening in the drawing).
-  for (const x of [-155, 0, 155]) {
-    annulus(g, m, 66, 39.5, 52, [x, 815, zf - 26], [0, 0, 1]);
-    annulus(g, m, 66, 39.5, 52, [x, 815, -zf + 26], [0, 0, -1]);
-    boltCircle(g, m, [x, 815, zf - 5], [0, 0, 1], 54, 6, 6, Math.PI / 6);
+function buildG(g,m,explode,labels) {
+  const L=945, cy=423, zf=L/2;
+  // Cylindrical central chamber with open axial bore.
+  annulus(g,m,282,242,L-65,[0,cy,0],[0,0,1]);
+  for(const s of [-1,1])
+    annulus(g,m,290,242,32,[0,cy,s*(zf-16)],[0,0,s],
+      {radius:269,count:12,holeRadius:8,start:Math.PI/12});
+  // Foundry shoulder contour on both ends; the chamber is not a square cage.
+  for(const z of [-zf+30,zf-30]) {
+    const outline=[[-300,75],[-300,625],[-268,730],[-230,850],[-210,960],
+      [210,960],[230,850],[268,730],[300,625],[300,75],
+      [245,50],[-245,50]];
+    polygonPlate(g,m,outline,22,[0,0,z],[0,0,1],[[0,cy,242]]);
+    // Lower foot bridges, with the main bore remaining open above them.
+    box(g,m,[605,42,55],[0,34,z]);
   }
-  // External cast ribs, feet and a lower service opening.
-  for (const z of [-330, 330]) {
-    addRib(g, m, [-270, 80, z], [-190, 335, z], 28, 38);
-    addRib(g, m, [270, 80, z], [190, 335, z], 28, 38);
-    addRib(g, m, [-260, 730, z], [-170, 820, z], 24, 32);
-    addRib(g, m, [260, 730, z], [170, 820, z], 24, 32);
+  // Two long flared lower support rails and tapered side webs.
+  for(const x of [-260,260]) {
+    box(g,m,[75,42,L],[x,22,0]);
+    for(const z of [-330,330]) {
+      beamBetween(g,m,[x,85,z],[x*.78,325,z*.65],28,34);
+      beamBetween(g,m,[x*.84,625,z],[x*.67,850,z*.7],25,28);
+    }
   }
-  annulus(g, m, 50, 34, 70, [0, 130, zf + 15], [0, 0, 1]);
-  for (const x of [-250, 250]) box(g, m, [110, 36, 220], [x, 18, 0]);
-  if (labels) { addLabel(g, '主法兰 Ø566', [0, 700, zf + 40], 140); addLabel(g, '3 × 上部接口', [0, 910, zf + 30], 130); }
+  // Three upper front inspection ports, not three enormous holes in a flat wall.
+  for(const x of [-155,0,155]) {
+    annulus(g,m,63,39.5,60,[x,819,zf-18],[0,0,1]);
+    annulus(g,m,72,39.5,16,[x,819,zf+10],[0,0,1],
+      {radius:57,count:6,holeRadius:5,start:Math.PI/6});
+  }
+  // Auxiliary service opening and two smaller threaded seats on the opposite end.
+  annulus(g,m,54,32,55,[0,140,-zf+20],[0,0,-1]);
+  for(const x of [-110,110])
+    annulus(g,m,35,19,30,[x,720,-zf+15],[0,0,-1]);
+  // Long side-mounted support lugs at both flange ends.
+  for(const x of [-282,282]) for(const z of [-370,370])
+    annulus(g,m,20,9,18,[x,85,z],[0,1,0]);
+  if(labels) {addLabel(g,'主法兰 Ø580',[0,730,zf+80],155);addLabel(g,'上部 3 接口',[0,955,zf+60],130);}
 }
 
 // H — 680 × 650 × 890 housing, Ø540 front flange and Ø530 shell.
-function buildH(g, m, explode, labels) {
-  const W = 680, H = 890, L = 650, zf = L / 2, cy = 550;
-  // Main cylindrical chamber with its open through-bore.
-  annulus(g, m, 265, 220, L - 56, [0, cy, 0], [0, 0, 1]);
-  annulus(g, m, 270, 220, 30, [0, cy, zf - 15], [0, 0, 1]);
-  annulus(g, m, 270, 220, 30, [0, cy, -zf + 15], [0, 0, -1]);
-  boltCircle(g, m, [0, cy, zf - 5], [0, 0, 1], 250, 12, 9, Math.PI / 12);
-  boltCircle(g, m, [0, cy, -zf + 5], [0, 0, -1], 250, 12, 9, Math.PI / 12);
-  // Outer rectangular support frame, 680 wide and 890 high.
-  box(g, m, [W, 30, L], [0, 15, 0]);
-  box(g, m, [W, 30, L], [0, H - 15, 0]);
-  for (const x of [-325, 325]) {
-    box(g, m, [30, H - 60, L], [x, H / 2, 0]);
-    box(g, m, [55, 34, L], [x, 290, 0]);
-    addRib(g, m, [x * .88, 42, -250], [x * .88, 270, -205], 30, 42);
-    addRib(g, m, [x * .88, 42, 250], [x * .88, 270, 205], 30, 42);
+function buildH(g,m,explode,labels) {
+  const W=680, L=650, H=890, cy=552, zEnd=L/2;
+  // Cylindrical through-chamber: Ø530 OD, Ø430 internal bore, Ø540 end flanges.
+  annulus(g,m,265,215,L-52,[0,cy,0],[0,0,1]);
+  for (const sign of [-1,1]) {
+    annulus(g,m,270,215,28,[0,cy,sign*(zEnd-14)],[0,0,sign],
+      {radius:250,count:12,holeRadius:9,start:Math.PI/12});
+    annulus(g,m,250,218,12,[0,cy,sign*(zEnd-35)],[0,0,sign]);
   }
-  // Internal radial support vanes visible in the section views.
-  for (let i = 0; i < 8; i++) {
-    const a = i * TAU / 8;
-    const r0 = 220, r1 = 255;
-    addRib(g, m, [r0 * Math.cos(a), cy + r0 * Math.sin(a), -190], [r1 * Math.cos(a), cy + r1 * Math.sin(a), -190], 16, 24);
+  // The end mounting rails are narrow bars; the previous full square cage was wrong.
+  for (const z of [-zEnd+16,zEnd-16]) {
+    rectanglePlate(g,m,W,60,30,[0,H-30,z],[0,0,1],[],null,5);
+    rectanglePlate(g,m,W-20,66,30,[0,32,z],[0,0,1],[],null,5);
   }
-  // Top and lower service bosses from the detail views.
-  annulus(g, m, 60, 31, 45, [0, 820, 0], [0, 1, 0]);
-  annulus(g, m, 71, 42.5, 48, [0, 150, zf - 24], [0, 0, 1]);
-  annulus(g, m, 71, 42.5, 48, [0, 150, -zf + 24], [0, 0, -1]);
-  boltCircle(g, m, [0, 150, zf - 5], [0, 0, 1], 58, 6, 6);
-  // Cross braces and side mounting lugs.
-  for (const z of [-zf + 18, zf - 18]) {
-    box(g, m, [W, 20, 35], [0, 290, z]);
-    box(g, m, [W, 20, 35], [0, 820, z]);
+  // Bottom saddle: four flared side plates and two long rails leave open voids.
+  for (const z of [-260,260]) {
+    polygonPlate(g,m,[[-300,45],[-255,275],[-185,315],[-172,245],[-205,90],[-235,45]],24,[0,0,z]);
+    polygonPlate(g,m,[[300,45],[255,275],[185,315],[172,245],[205,90],[235,45]],24,[0,0,z]);
   }
-  for (const x of [-325, 325]) for (const z of [-240, 240]) annulus(g, m, 18, 9, 4, [x, 280, z], [1, 0, 0]);
-  if (labels) { addLabel(g, '主壳体 Ø530', [0, 840, zf + 25], 120); addLabel(g, '机架 680 × 890', [0, 60, zf + 25], 120); }
+  for (const x of [-250,250]) {
+    box(g,m,[62,35,L],[x,18,0]);
+    beamBetween(g,m,[x,65,-280],[x,300,-120],26,31);
+    beamBetween(g,m,[x,65,280],[x,300,120],26,31);
+    beamBetween(g,m,[x,310,-260],[x,600,-75],24,28);
+    beamBetween(g,m,[x,310,260],[x,600,75],24,28);
+  }
+  // Two lower cast cheeks connect the cylindrical body to the service manifold.
+  for (const z of [-270,270]) {
+    polygonPlate(g,m,[[-230,42],[230,42],[235,280],[140,310],[-140,310],[-235,280]],23,[0,0,z],
+      [[-130,148,40],[0,148,40],[130,148,40]]);
+  }
+  // Three Ø71 openings in Ø110 seats on the front manifold (see front elevation).
+  for (const x of [-130,0,130]) {
+    annulus(g,m,55,35.5,36,[x,148,zEnd-12],[0,0,1]);
+    annulus(g,m,59,35.5,8,[x,148,zEnd+8],[0,0,1],
+      {radius:48,count:4,holeRadius:4,start:Math.PI/4});
+  }
+  // Opposite lower service connection, Ø142 nominal seat with central opening.
+  annulus(g,m,71,43,42,[-185,155,-zEnd+12],[0,0,-1]);
+  annulus(g,m,83,43,12,[-185,155,-zEnd-12],[0,0,-1],
+    {radius:68,count:6,holeRadius:6});
+  // Upper Ø120 inspection neck and side Ø96 auxiliary outlet.
+  annulus(g,m,60,40,62,[0,829,0],[0,1,0]);
+  annulus(g,m,75,40,15,[0,867,0],[0,1,0],{radius:61,count:6,holeRadius:5});
+  annulus(g,m,48,28,58,[278,195,0],[1,0,0]);
+  annulus(g,m,60,28,12,[307,195,0],[1,0,0],{radius:47,count:6,holeRadius:5});
+  // Cast mounting lugs at the base; through-hole rings remain visibly open.
+  for (const x of [-280,280]) for (const z of [-260,260])
+    annulus(g,m,18,9,16,[x,47,z],[0,1,0]);
+  if (labels) { addLabel(g,'Ø540 法兰 · 12-Ø18',[0,835,zEnd+65],165); addLabel(g,'3 × Ø71 接口',[0,60,zEnd+65],145); }
 }
 
 const builders = { A: buildA, B: buildB, C: buildC, D: buildD, E: buildE, F: buildF, G: buildG, H: buildH };
