@@ -67,71 +67,104 @@ function safeDispose(root, material, isImported) {
   disposePart(root, material);
 }
 
-function fitCamera(state, model, element) {
+// Projection-aware fit: orientation is independent of resize, model switching,
+// or switching between orthographic and perspective projection.
+const DEFAULT_DIRECTION = new THREE.Vector3(1, .75, 1).normalize();
+function fitCamera(state, model, element, resetDirection = false) {
   if (!state || !model || !element) return;
   model.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(model);
   if (bounds.isEmpty()) return;
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
-  const maxDim = Math.max(size.x, size.y, size.z, 1);
-  const radius = Math.max(bounds.getBoundingSphere(new THREE.Sphere()).radius, maxDim * .5);
-  const aspect = Math.max(.35, element.clientWidth / Math.max(1, element.clientHeight));
-  const verticalFov = THREE.MathUtils.degToRad(state.camera.fov);
-  const tanV = Math.tan(verticalFov / 2);
-  const tanH = tanV * aspect;
-  const direction = new THREE.Vector3(1, .72, 1).normalize();
-  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),direction).normalize();
-  const up = new THREE.Vector3().crossVectors(direction,right).normalize();
-  // Perspective fit from all eight projected box corners, not an overly
-  // conservative bounding sphere. Occupies ~85% of the available viewport.
-  const margin = .86;
-  let distance = radius;
-  for (const x of [bounds.min.x, bounds.max.x])
-    for (const y of [bounds.min.y, bounds.max.y])
-      for (const z of [bounds.min.z, bounds.max.z]) {
-        const p = new THREE.Vector3(x,y,z).sub(center);
-        const depth = p.dot(direction);
-        distance = Math.max(distance,
-          depth + Math.abs(p.dot(right)) / (tanH * margin),
-          depth + Math.abs(p.dot(up)) / (tanV * margin));
-      }
-  distance = Math.max(distance, radius * 1.12);
-  state.center.copy(center);
-  state.fitDistance = distance;
-  state.modelRadius = radius;
-  state.camera.position.copy(center).addScaledVector(direction, distance);
-  state.camera.up.set(0, 1, 0);
-  state.camera.near = Math.max(.1, radius / 2000);
-  state.camera.far = Math.max(10000, distance + radius * 14);
-  state.camera.lookAt(center);
-  state.camera.updateProjectionMatrix();
+  const maxDim = Math.max(size.x,size.y,size.z,1);
+  const radius = Math.max(bounds.getBoundingSphere(new THREE.Sphere()).radius,maxDim*.5);
+  const aspect = Math.max(.25, element.clientWidth/Math.max(1,element.clientHeight));
+  const camera = state.camera;
+  let direction = resetDirection ? DEFAULT_DIRECTION.clone() : camera.position.clone().sub(state.controls.target).normalize();
+  if (direction.lengthSq()<.5) direction=DEFAULT_DIRECTION.clone();
+  const previousScale=state.fitDistance>0 && !resetDirection
+    ? THREE.MathUtils.clamp(camera.position.distanceTo(state.controls.target)/state.fitDistance,.20,6)
+    : 1;
+  const worldUp = Math.abs(direction.dot(new THREE.Vector3(0,1,0)))>.998
+    ? (Math.abs(camera.up.z)>.5?camera.up.clone():new THREE.Vector3(0,0,-1))
+    : (resetDirection?new THREE.Vector3(0,1,0):camera.up.clone());
+  const right=new THREE.Vector3().crossVectors(worldUp,direction).normalize();
+  if(right.lengthSq()<.5)right.set(1,0,0);
+  const up=new THREE.Vector3().crossVectors(direction,right).normalize();
+  let projectedWidth=0,projectedHeight=0;
+  const relative=[];
+  for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z]){
+    const p=new THREE.Vector3(x,y,z).sub(center);
+    const h=Math.abs(p.dot(right)),v=Math.abs(p.dot(up)),depth=p.dot(direction);
+    projectedWidth=Math.max(projectedWidth,h);projectedHeight=Math.max(projectedHeight,v);
+    relative.push({h,v,depth});
+  }
+  // Fit all 8 vertices inside the actual camera frustum, including the
+  // near-to-camera corners (important for the long E / D castings).
+  const margin=.82,verticalFov=THREE.MathUtils.degToRad(state.perspectiveCamera.fov);
+  const tanV=Math.tan(verticalFov/2),tanH=tanV*aspect;
+  let idealDistance=radius*1.2;
+  for(const p of relative)idealDistance=Math.max(idealDistance,
+    p.depth+p.h/(tanH*margin),p.depth+p.v/(tanV*margin));
+  idealDistance=Math.max(idealDistance,radius*1.35);
+  const halfHeight=Math.max(projectedHeight,projectedWidth/aspect,1)/margin;
+  const ortho=state.orthoCamera;
+  ortho.left=-halfHeight*aspect;ortho.right=halfHeight*aspect;
+  ortho.top=halfHeight;ortho.bottom=-halfHeight;
+  ortho.zoom=resetDirection?1:Math.max(.1,ortho.zoom || 1);
+  ortho.near=.01;ortho.far=Math.max(20000,maxDim*20);ortho.updateProjectionMatrix();
+  state.perspectiveCamera.aspect=aspect;
+  state.perspectiveCamera.near=Math.max(.01,radius/5000);
+  state.perspectiveCamera.far=Math.max(20000,idealDistance*12+radius*5);
+  state.perspectiveCamera.updateProjectionMatrix();
+  state.center.copy(center);state.modelRadius=radius;state.fitDistance=idealDistance;
+  camera.position.copy(center).addScaledVector(direction,idealDistance*previousScale);
+  camera.up.copy(worldUp);camera.lookAt(center);
   state.controls.target.copy(center);
-  state.controls.minDistance = Math.max(2, radius * .12);
-  state.controls.maxDistance = Math.max(distance * 8, radius * 12);
+  state.controls.minDistance=Math.max(.01,radius*.06);
+  state.controls.maxDistance=idealDistance*25;
+  state.controls.minZoom=.1;state.controls.maxZoom=30;
   state.controls.update();
-
-  const groundY = bounds.min.y - maxDim * .035;
-  state.ground.position.set(center.x, groundY, center.z);
-  state.ground.scale.setScalar(Math.max(1, maxDim / 1800));
-  state.grid.position.set(center.x, groundY + .5, center.z);
-  state.grid.scale.setScalar(Math.max(.7, maxDim / 1800));
-  state.axes.position.set(bounds.min.x - maxDim * .055, bounds.min.y, bounds.min.z - maxDim * .055);
-  state.axes.scale.setScalar(maxDim / 1500);
-
-  state.keyLight.position.set(center.x + maxDim * .85, center.y + maxDim * 1.5, center.z + maxDim * 1.1);
-  state.fillLight.position.set(center.x - maxDim * 1.1, center.y + maxDim * .35, center.z - maxDim * .9);
-  state.rimLight.position.set(center.x, center.y + maxDim * .65, center.z + maxDim * 1.3);
-  state.keyLight.target.position.copy(center); state.fillLight.target.position.copy(center); state.rimLight.target.position.copy(center);
-  const shadowExtent = maxDim * .9;
-  state.keyLight.shadow.camera.left = -shadowExtent; state.keyLight.shadow.camera.right = shadowExtent;
-  state.keyLight.shadow.camera.top = shadowExtent; state.keyLight.shadow.camera.bottom = -shadowExtent;
-  state.keyLight.shadow.camera.near = .1; state.keyLight.shadow.camera.far = maxDim * 5;
+  const groundY=bounds.min.y-maxDim*.04;
+  state.ground.position.set(center.x,groundY,center.z);
+  state.ground.scale.setScalar(Math.max(1,maxDim/1800));
+  state.grid.position.set(center.x,groundY+.5,center.z);
+  state.grid.scale.setScalar(Math.max(.7,maxDim/1800));
+  state.axes.position.set(bounds.min.x-maxDim*.06,bounds.min.y,bounds.min.z-maxDim*.06);
+  state.axes.scale.setScalar(maxDim/1500);
+  state.keyLight.position.set(center.x+maxDim*.85,center.y+maxDim*1.5,center.z+maxDim*1.1);
+  state.fillLight.position.set(center.x-maxDim*1.1,center.y+maxDim*.35,center.z-maxDim*.9);
+  state.rimLight.position.set(center.x,center.y+maxDim*.65,center.z+maxDim*1.3);
+  for(const light of [state.keyLight,state.fillLight,state.rimLight])light.target.position.copy(center);
+  const extent=maxDim*.95;
+  state.keyLight.shadow.camera.left=-extent;state.keyLight.shadow.camera.right=extent;
+  state.keyLight.shadow.camera.top=extent;state.keyLight.shadow.camera.bottom=-extent;
+  state.keyLight.shadow.camera.near=.1;state.keyLight.shadow.camera.far=maxDim*5;
   state.keyLight.shadow.camera.updateProjectionMatrix();
-  state.renderer.render(state.scene, state.camera);
+  state.renderer.render(state.scene,camera);
+}
+function setProjection(state, projection, element) {
+  if(!state || state.projection===projection)return;
+  const oldCamera=state.camera;
+  const oldTarget=state.controls.target.clone();
+  const oldDirection=oldCamera.position.clone().sub(oldTarget).normalize();
+  const newCamera=projection==='orthographic'?state.orthoCamera:state.perspectiveCamera;
+  const zoomFactor=state.projection==='orthographic'?1/Math.max(.1,oldCamera.zoom):
+    oldCamera.position.distanceTo(oldTarget)/Math.max(1,state.fitDistance);
+  newCamera.position.copy(oldTarget).addScaledVector(oldDirection,state.fitDistance*zoomFactor);
+  newCamera.up.copy(oldCamera.up);
+  newCamera.lookAt(oldTarget);
+  state.camera=newCamera;state.controls.object=newCamera;state.projection=projection;
+  fitCamera(state,state.model,element,false);
+  // Maintain user zoom on mode switch while retaining a valid frustum.
+  if(projection==='orthographic'){
+    newCamera.zoom=THREE.MathUtils.clamp(1/zoomFactor,.1,16);
+    newCamera.updateProjectionMatrix();
+  }
 }
 
-const Viewer = forwardRef(function Viewer({ id, imported, options, viewCommand, background = 'midnight' }, ref) {
+const Viewer = forwardRef(function Viewer({ id, imported, options, viewCommand, projection = 'perspective', background = 'midnight' }, ref) {
   const mount = useRef(null), gizmo = useRef(null), state = useRef(null), [issue, setIssue] = useState('');
 
   useEffect(() => {
@@ -147,7 +180,9 @@ const Viewer = forwardRef(function Viewer({ id, imported, options, viewCommand, 
       renderer.domElement.setAttribute('aria-label', '可旋转的三维机械零件'); element.appendChild(renderer.domElement);
 
       const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(34, 1, .1, 20000);
+      const perspectiveCamera = new THREE.PerspectiveCamera(34, 1, .1, 20000);
+      const orthoCamera = new THREE.OrthographicCamera(-500,500,500,-500,.01,20000);
+      const camera = projection==='orthographic'?orthoCamera:perspectiveCamera;
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true; controls.dampingFactor = .075; controls.rotateSpeed = .68;
       controls.zoomSpeed = .9; controls.panSpeed = .75; controls.screenSpacePanning = true;
@@ -170,7 +205,7 @@ const Viewer = forwardRef(function Viewer({ id, imported, options, viewCommand, 
       scene.add(model);
 
       const current = {
-        renderer, scene, camera, controls, material, model, modelIsImported: !!imported,
+        renderer, scene, camera, perspectiveCamera, orthoCamera, projection, controls, material, model, modelIsImported: !!imported,
         keyLight, fillLight, rimLight, ground, grid, axes, center: new THREE.Vector3(),
         fitDistance: 1000, modelRadius: 500
       };
@@ -178,15 +213,17 @@ const Viewer = forwardRef(function Viewer({ id, imported, options, viewCommand, 
 
       function resize() {
         const width = Math.max(1, element.clientWidth), height = Math.max(1, element.clientHeight);
-        renderer.setSize(width, height, false); camera.aspect = width / height; camera.updateProjectionMatrix();
-        fitCamera(current, current.model, element); axesGizmo(gizmo.current, camera);
+        renderer.setSize(width, height, false);
+        // Important: viewport resize must not reset the user's orbit angle.
+        fitCamera(current, current.model, element, current.fitDistance === 1000 && !current.initialized);
+        current.initialized = true; axesGizmo(gizmo.current, current.camera);
       }
       resizeObserver = new ResizeObserver(resize); resizeObserver.observe(element); resize();
       lossHandler = event => { event.preventDefault(); setIssue('浏览器的 WebGL 图形上下文丢失。请刷新页面，并检查浏览器硬件加速是否开启。'); };
       renderer.domElement.addEventListener('webglcontextlost', lossHandler);
       const animate = () => {
         frame = window.requestAnimationFrame(animate);
-        try { controls.update(); renderer.render(scene, camera); axesGizmo(gizmo.current, camera); }
+        try { controls.update(); renderer.render(scene, current.camera); axesGizmo(gizmo.current, current.camera); }
         catch (error) { window.cancelAnimationFrame(frame); frame = null; console.error('[ForgeStudio] 3D render failed:', error); setIssue(`三维渲染失败：${error.message || '未知错误'}`); }
       };
       animate(); setIssue('');
@@ -216,11 +253,17 @@ const Viewer = forwardRef(function Viewer({ id, imported, options, viewCommand, 
       if (current.model) { current.scene.remove(current.model); safeDispose(current.model, current.material, current.modelIsImported); }
       const root = imported ? importedGroup(imported, current.material) : buildPart(id, current.material, options.explode, options.labels);
       current.scene.add(root); current.model = root; current.modelIsImported = !!imported;
-      fitCamera(current, root, mount.current); axesGizmo(gizmo.current, current.camera); setIssue('');
+      fitCamera(current, root, mount.current, true); axesGizmo(gizmo.current, current.camera); setIssue('');
     } catch (error) {
       console.error('[ForgeStudio] Model creation failed:', error); setIssue(`模型创建失败：${error.message || '未知错误'}`);
     }
   }, [id, imported, options.explode, options.labels]);
+
+  useEffect(() => {
+    const current=state.current;if(!current)return;
+    setProjection(current, projection, mount.current);
+    axesGizmo(gizmo.current,current.camera);
+  }, [projection]);
 
   useEffect(() => {
     const current = state.current; if (!current) return;
@@ -234,27 +277,37 @@ const Viewer = forwardRef(function Viewer({ id, imported, options, viewCommand, 
   }, [options]);
 
   useEffect(() => {
-    const current = state.current; if (!current) return;
-    const name = viewCommand.name;
-    if (name === 'zoomIn' || name === 'zoomOut') {
-      const factor = name === 'zoomIn' ? .76 : 1.32;
-      const direction = current.camera.position.clone().sub(current.controls.target).multiplyScalar(factor);
-      current.camera.position.copy(current.controls.target.clone().add(direction));
-    } else {
-      const endOnX = !imported && id === 'E';
-      const directions = {
-        iso: [1, .72, 1], front: endOnX ? [1, 0, 0] : [0, 0, 1],
-        back: endOnX ? [-1, 0, 0] : [0, 0, -1],
-        right: endOnX ? [0, 0, 1] : [1, 0, 0], top: [0, 1, .001]
+    const current=state.current;if(!current)return;
+    const name=viewCommand.name,camera=current.camera;
+    if(name==='zoomIn'||name==='zoomOut'){
+      const factor=name==='zoomIn'?.80:1.25;
+      if(camera.isOrthographicCamera){
+        camera.zoom=THREE.MathUtils.clamp(camera.zoom/factor,.1,30);
+        camera.updateProjectionMatrix();
+      } else {
+        camera.position.copy(current.controls.target).addScaledVector(
+          camera.position.clone().sub(current.controls.target).multiplyScalar(factor),1);
+      }
+    }else if(name==='fit'){
+      fitCamera(current,current.model,mount.current,false);
+    }else{
+      const endOnX=!imported&&id==='E';
+      const directions={
+        iso:[1,.8,1],front:endOnX?[1,0,0]:[0,0,1],
+        back:endOnX?[-1,0,0]:[0,0,-1],
+        right:endOnX?[0,0,1]:[1,0,0],left:endOnX?[0,0,-1]:[-1,0,0],
+        top:[0,1,0],bottom:[0,-1,0]
       };
-      const direction = new THREE.Vector3(...(directions[name] || directions.iso)).normalize();
-      current.camera.position.copy(current.center).addScaledVector(direction, current.fitDistance);
-      current.camera.up.set(0, 1, 0);
-      if (name === 'top') current.camera.up.set(0, 0, -1);
+      const direction=new THREE.Vector3(...(directions[name]||directions.iso)).normalize();
+      camera.up.set(0,1,0);
+      if(name==='top')camera.up.set(0,0,-1);
+      if(name==='bottom')camera.up.set(0,0,1);
+      camera.position.copy(current.center).addScaledVector(direction,current.fitDistance);
       current.controls.target.copy(current.center);
+      fitCamera(current,current.model,mount.current,false);
     }
-    current.camera.lookAt(current.controls.target); current.camera.updateProjectionMatrix(); current.controls.update();
-    axesGizmo(gizmo.current, current.camera);
+    camera.lookAt(current.controls.target);camera.updateProjectionMatrix();
+    current.controls.update();axesGizmo(gizmo.current,camera);
   }, [viewCommand]);
 
   useImperativeHandle(ref, () => ({

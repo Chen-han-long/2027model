@@ -87,3 +87,16 @@
 .drawing-compare p{font-size:10px;line-height:1.55;margin:0;padding:9px 11px;color:#49616e;border-top:1px solid #dbe5e9}
 @media(max-width:890px){.drawing-compare{width:min(43%,310px);top:48px;right:8px;max-height:calc(100% - 130px)}.drawing-compare p{font-size:9px;padding:6px}}
 @media(max-width:580px){.drawing-compare{width:52%;top:44px}.drawing-compare p{display:none}}
+
+/* v1.5: explicit projection switch; the viewer remains the main focus. */
+.floating-toolbar{max-width:calc(100% - 36px);padding:6px;gap:6px;flex-wrap:wrap;justify-content:center}
+.floating-toolbar .toolbar-segment{gap:2px}
+.floating-toolbar .view-button{min-width:32px;padding-inline:8px}
+.floating-toolbar .view-button.selected{background:#326b80;color:#e9fcff;box-shadow:inset 0 0 0 1px #79bec5}
+.projection-panel{border:1px solid #365565;border-radius:9px;padding:11px;margin:12px 0;background:#132938}
+.projection-panel>span{display:block;color:#b2d4df;font-size:11px;margin-bottom:9px;font-weight:700}
+.projection-panel>div{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.projection-panel button{padding:9px 6px;border-radius:7px;border:1px solid #3c5b6b;background:#183544;color:#bdd2da;cursor:pointer;font-size:11px}
+.projection-panel button.active{background:#2a6980;border-color:#83dce2;color:white}
+.projection-panel small{display:block;margin-top:7px;color:#8babb7;line-height:1.7;font-size:10px}
+@media(max-width:690px){.floating-toolbar{max-width:calc(100% - 12px);gap:2px;padding:3px}.floating-toolbar .view-button{font-size:10px;min-width:26px;padding-inline:3px}.toolbar-divider{margin-inline:1px}}
